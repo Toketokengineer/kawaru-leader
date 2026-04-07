@@ -105,35 +105,66 @@ function SaveIndicator({status}){
   );
 }
 
+// ── API helpers ──────────────────────────────────────────────
+async function callClaude(prompt,maxTokens=500){
+  const res=await fetch("https://api.anthropic.com/v1/messages",{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:maxTokens,messages:[{role:"user",content:prompt}]})
+  });
+  const data=await res.json();
+  return data.content?.map(b=>b.text).join("")||"";
+}
+
+function buildSurveyText(survey){
+  if(!survey) return "";
+  const parts=[];
+  if(survey.good)        parts.push(`良い点：${survey.good}`);
+  if(survey.improve)     parts.push(`改善点：${survey.improve}`);
+  if(survey.continueBeh) parts.push(`継続すべき行動：${survey.continueBeh}`);
+  if(survey.stop)        parts.push(`やめるべき行動：${survey.stop}`);
+  if(survey.start)       parts.push(`始めるべき行動：${survey.start}`);
+  return parts.length?`【360度サーベイ】\n${parts.join("\n")}`:"";
+}
+
+function buildSessionsText(sessions){
+  if(!sessions) return "";
+  const parts=[];
+  if(sessions.s1) parts.push(`セッション1：${sessions.s1}`);
+  if(sessions.s2) parts.push(`セッション2：${sessions.s2}`);
+  if(sessions.s3) parts.push(`セッション3：${sessions.s3}`);
+  return parts.length?`【セッションの気づき】\n${parts.join("\n")}`:"";
+}
+
+async function fetchGoalSuggestions(profile,pastWeeks){
+  const surveyText=buildSurveyText(profile?.survey);
+  const sessionsText=buildSessionsText(profile?.sessions);
+  const histText=pastWeeks.slice(0,3).map(([k,wd])=>{
+    const done=Object.values(wd.days||{}).filter(d=>d.status==="done").length;
+    const total=Object.values(wd.days||{}).filter(d=>["done","skip"].includes(d.status)).length;
+    const p=total>0?Math.round(done/total*100):0;
+    return `${k}週〜 目標:「${wd.goal||"未設定"}」達成率:${p}%`;
+  }).join("\n");
+  const prompt=`あなたはリーダーシップ研修のコーチです。以下の情報をもとに、来週の行動目標候補を3つ提案してください。各候補は1〜2文で具体的・実行可能な内容にしてください。\n\n${surveyText}\n\n${sessionsText}\n\n【過去3週の目標と達成率】\n${histText||"（履歴なし）"}\n\n以下の形式で3つだけ出力してください（番号と内容のみ、他の文章は不要）：\n1. [目標候補1]\n2. [目標候補2]\n3. [目標候補3]`;
+  const text=await callClaude(prompt,400);
+  return text.split("\n").filter(l=>/^\d+[.．]/.test(l.trim())).map(l=>l.replace(/^\d+[.．]\s*/,"").trim()).filter(Boolean).slice(0,3);
+}
+
+async function fetchAha(goal,profile){
+  const surveyText=buildSurveyText(profile?.survey);
+  const prompt=`あなたはリーダーシップ研修のコーチです。以下の受講者の情報に合ったリーダーシップの格言・事例・問いかけを1つだけ生成してください。150字以内で、気づきや内省を促す内容にしてください。\n\n今週の目標：${goal||"（未設定）"}\n${surveyText}\n\n形式：内容を直接書いてください（見出しや番号は不要）。出典があれば最後に（出典：〇〇）と添えてください。`;
+  return await callClaude(prompt,300);
+}
+
 // ── AI Advice ────────────────────────────────────────────────
 async function fetchAdvice(goal,comments,achieveRate,reflection,profile){
   const commentText=comments.filter(Boolean).join("\n");
   const reflectionText=reflection?`\n週間振り返り：${reflection}`:"";
-  let surveyText="";
-  if(profile?.survey){
-    const s=profile.survey,parts=[];
-    if(s.good)        parts.push(`良い点：${s.good}`);
-    if(s.improve)     parts.push(`改善点：${s.improve}`);
-    if(s.continueBeh) parts.push(`継続すべき行動：${s.continueBeh}`);
-    if(s.stop)        parts.push(`やめるべき行動：${s.stop}`);
-    if(s.start)       parts.push(`始めるべき行動：${s.start}`);
-    if(parts.length)  surveyText=`\n\n【360度サーベイ結果】\n${parts.join("\n")}`;
-  }
-  let sessionsText="";
-  if(profile?.sessions){
-    const s=profile.sessions,parts=[];
-    if(s.s1) parts.push(`セッション1：${s.s1}`);
-    if(s.s2) parts.push(`セッション2：${s.s2}`);
-    if(s.s3) parts.push(`セッション3：${s.s3}`);
-    if(parts.length) sessionsText=`\n\n【研修セッションでの気づき】\n${parts.join("\n")}`;
-  }
-  const prompt=`あなたはリーダーシップ研修のコーチです。受講者の情報を踏まえ、以下を300字以内で日本語でアドバイスしてください。①今週の取り組みへの具体的なフィードバック②来週の目標への提案\n\n目標：${goal}\n達成率：${achieveRate}%\n日々のコメント：\n${commentText||"（コメントなし）"}${reflectionText}${surveyText}${sessionsText}`;
-  const res=await fetch("https://api.anthropic.com/v1/messages",{
-    method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:500,messages:[{role:"user",content:prompt}]})
-  });
-  const data=await res.json();
-  return data.content?.map(b=>b.text).join("")||"アドバイスを取得できませんでした。";
+  const surveyText=buildSurveyText(profile?.survey);
+  const sessionsText=buildSessionsText(profile?.sessions);
+  const surveyBlock=surveyText?`\n\n${surveyText}`:"";
+  const sessionsBlock=sessionsText?`\n\n${sessionsText}`:"";
+  const prompt=`あなたはリーダーシップ研修のコーチです。受講者の情報を踏まえ、以下を300字以内で日本語でアドバイスしてください。①今週の取り組みへの具体的なフィードバック②来週の目標への提案\n\n目標：${goal}\n達成率：${achieveRate}%\n日々のコメント：\n${commentText||"（コメントなし）"}${reflectionText}${surveyBlock}${sessionsBlock}`;
+  return (await callClaude(prompt))||"アドバイスを取得できませんでした。";
 }
 
 // ── メインアプリ ─────────────────────────────────────────────
@@ -154,9 +185,13 @@ export default function App(){
   const [editName,setEditName]   = useState(false);
   const [nameDraft,setNameDraft] = useState("");
   const [urlCopied,setUrlCopied] = useState(false);
-  const [advice,setAdvice]       = useState(null);
-  const [adviceLoading,setAdviceLoading] = useState(false);
-  const [weekOffset,setWeekOffset]       = useState(0);
+  const [advice,setAdvice]                   = useState(null);
+  const [adviceLoading,setAdviceLoading]     = useState(false);
+  const [goalSuggestions,setGoalSuggestions] = useState([]);
+  const [suggestionLoading,setSuggestionLoading] = useState(false);
+  const [aha,setAha]             = useState(null);
+  const [ahaLoading,setAhaLoading] = useState(false);
+  const [weekOffset,setWeekOffset] = useState(0);
 
   // 自動保存ステータス
   const [weekSaveStatus,setWeekSaveStatus]       = useState("idle"); // idle|saving|saved
@@ -295,6 +330,18 @@ export default function App(){
     setAdvice(text); setAdviceLoading(false);
   }
 
+  async function handleSuggestGoals(){
+    setSuggestionLoading(true); setGoalSuggestions([]);
+    const suggestions=await fetchGoalSuggestions(profileData,allWeeks);
+    setGoalSuggestions(suggestions); setSuggestionLoading(false);
+  }
+
+  async function handleAha(){
+    setAhaLoading(true); setAha(null);
+    const text=await fetchAha(weekData.goal,profileData);
+    setAha(text||"生成できませんでした。"); setAhaLoading(false);
+  }
+
   const navSet=o=>{setWeekOffset(o);setEditGoal(false);setAdvice(null);};
 
   const TABS=[
@@ -395,6 +442,28 @@ export default function App(){
                   <Btn secondary style={{marginTop:12}} onClick={()=>{setGoalDraft(weekData.goal||"");setEditGoal(true);}}>
                     ✏️ {weekData.goal?"目標を変更":"目標を設定"}
                   </Btn>
+                  <Btn onClick={handleSuggestGoals} disabled={suggestionLoading}
+                    style={{marginTop:8,background:suggestionLoading?"#ddd":"#1a4a7a"}}>
+                    {suggestionLoading?"提案を生成中...":"🎯 AIに目標を提案してもらう"}
+                  </Btn>
+                  {goalSuggestions.length>0&&(
+                    <div style={{marginTop:14}}>
+                      <div style={{fontSize:11,color:INK_LT,marginBottom:8,textAlign:"center"}}>
+                        タップすると目標として設定されます
+                      </div>
+                      {goalSuggestions.map((s,i)=>(
+                        <div key={i} onClick={()=>{updateWeek({goal:s});setGoalSuggestions([]);}}
+                          style={{padding:"12px 14px",background:"linear-gradient(135deg,#f0f4ff,#e8eeff)",border:"1px solid rgba(80,100,230,0.25)",borderRadius:10,marginBottom:8,cursor:"pointer",fontSize:13,lineHeight:1.7,display:"flex",gap:10,alignItems:"flex-start",transition:"opacity 0.15s"}}
+                          onMouseEnter={e=>e.currentTarget.style.opacity="0.75"}
+                          onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
+                          <span style={{color:"#3355cc",fontWeight:"bold",flexShrink:0,fontSize:15}}>
+                            {["①","②","③"][i]}
+                          </span>
+                          <span>{s}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </>
               )}
             </Card>
@@ -552,6 +621,35 @@ export default function App(){
                 {adviceLoading
                   ?<div style={{color:"rgba(255,255,255,0.4)",fontSize:12}}>分析中...</div>
                   :<div style={{fontSize:13,lineHeight:1.9,color:"rgba(255,255,255,0.9)"}}>{advice}</div>
+                }
+              </div>
+            )}
+
+            {/* Ahaネタ */}
+            <Card style={{marginTop:8}}>
+              <CardTitle>Ahaネタ</CardTitle>
+              <div style={{fontSize:12,color:INK_LT,marginBottom:10,lineHeight:1.7}}>
+                今週の目標・プロフィールに合ったリーダーシップの格言・事例・問いかけを生成します
+              </div>
+              <Btn onClick={handleAha} disabled={ahaLoading}>
+                {ahaLoading?"生成中...":"💡 リーダーシップのAhaネタを見る"}
+              </Btn>
+            </Card>
+            {(aha||ahaLoading)&&(
+              <div style={{background:"linear-gradient(135deg,#111,#1e1e2e)",borderRadius:12,padding:20,marginBottom:16,color:"white"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+                  <span style={{fontSize:18}}>💡</span>
+                  <span style={{fontSize:11,color:"rgba(255,255,255,0.5)",letterSpacing:"0.1em"}}>AHA MOMENT</span>
+                </div>
+                {ahaLoading
+                  ?<div style={{color:"rgba(255,255,255,0.4)",fontSize:12}}>生成中...</div>
+                  :<>
+                    <div style={{fontSize:13,lineHeight:1.9,color:"rgba(255,255,255,0.9)"}}>{aha}</div>
+                    <button onClick={handleAha}
+                      style={{marginTop:16,padding:"8px 16px",background:"rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.7)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:6,fontSize:12,cursor:"pointer",fontFamily:"'Noto Sans JP',sans-serif"}}>
+                      次のネタを見る →
+                    </button>
+                  </>
                 }
               </div>
             )}
