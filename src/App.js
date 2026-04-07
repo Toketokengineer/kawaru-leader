@@ -135,6 +135,59 @@ function buildSessionsText(sessions){
   return parts.length?`【セッションの気づき】\n${parts.join("\n")}`:"";
 }
 
+const GOAL_LIST=[
+  "メンバーに自分から声をかける",
+  "1日1回以上、全メンバーとコミュニケーションを取る",
+  "仕事以外の話（雑談・プライベート）をする",
+  "他部署・他チームと関係構築する",
+  "チームイベント・対話の場を設計する",
+  "1on1を定期的に実施する",
+  "1on1でメンバーに7割話してもらう",
+  "自分の意見の前に相手の意見を聞く",
+  "メンバーの話を最後まで聞く",
+  "メンバーのキャリアについて対話する",
+  "メンバーの強み・期待を言語化して伝える",
+  "小さな成果・良い行動を即時に認める",
+  "感謝・称賛を日常的に伝える",
+  "ミスを責めず「次どうするか」を考えさせる",
+  "答えではなく問いで返す",
+  "自分がやらなくていい仕事を委譲する",
+  "仕事を振る際に「WHY（意図）」を伝える",
+  "メンバーの自主性を引き出す環境をつくる",
+  "完璧主義をやめ「基準」を明確にする",
+  "週1つ、自分の仕事を手放す",
+  "チームのビジョンを自分の言葉で語る",
+  "優先順位を明確に伝える",
+  "決定事項の背景・意図を説明する",
+  "中長期目標を考える時間を持つ",
+  "仕事の社会的意義・意味を伝える",
+  "会議で全員の発言を引き出す",
+  "参加者の発言後に自分の意見を述べる",
+  "反対意見を受け止めてから議論する",
+  "役割・期待値を事前に明確にする",
+  "曖昧にせずその場で結論を出す",
+  "メール・チャットに感謝の一言を添える",
+  "チャットのトーンを柔らかくする",
+  "長いやり取りは別手段に切り替える",
+  "わかりやすく伝え、理解を確認する",
+  "返信を迅速に行う",
+  "外部情報を取り入れて共有する",
+  "ナレッジを発信する（背中を見せる）",
+  "週1回は専門知識をインプットする",
+  "日々の活動を言語化する（例：今日やった3つ）",
+  "自分の判断基準を明確に持つ",
+  "上司・他者に対しても自分の意見を述べる",
+  "判断前に必要な情報を確認する",
+  "判断を先送りしない",
+  "自分の失敗・弱さを開示する",
+  "フェアな態度で接する",
+  "否定的・攻撃的な発言を避ける",
+  "意見が出やすい空気をつくる",
+  "週1回、自分のリーダーシップを振り返る",
+  "感情的になる前に一呼吸おく",
+  "相談時間をあらかじめスケジュールに確保する",
+];
+
 async function fetchGoalSuggestions(profile,pastWeeks){
   const surveyText=buildSurveyText(profile?.survey);
   const sessionsText=buildSessionsText(profile?.sessions);
@@ -144,15 +197,16 @@ async function fetchGoalSuggestions(profile,pastWeeks){
     const p=total>0?Math.round(done/total*100):0;
     return `${k}週〜 目標:「${wd.goal||"未設定"}」達成率:${p}%`;
   }).join("\n");
-  const prompt=`あなたはリーダーシップ研修のコーチです。以下の情報をもとに、来週の行動目標候補を3つ提案してください。各候補は1〜2文で具体的・実行可能な内容にしてください。\n\n${surveyText}\n\n${sessionsText}\n\n【過去3週の目標と達成率】\n${histText||"（履歴なし）"}\n\n以下の形式で3つだけ出力してください（番号と内容のみ、他の文章は不要）：\n1. [目標候補1]\n2. [目標候補2]\n3. [目標候補3]`;
-  const text=await callClaude(prompt,400);
-  return text.split("\n").filter(l=>/^\d+[.．]/.test(l.trim())).map(l=>l.replace(/^\d+[.．]\s*/,"").trim()).filter(Boolean).slice(0,3);
-}
-
-async function fetchAha(goal,profile){
-  const surveyText=buildSurveyText(profile?.survey);
-  const prompt=`あなたはリーダーシップ研修のコーチです。以下の受講者の情報に合ったリーダーシップの格言・事例・問いかけを1つだけ生成してください。150字以内で、気づきや内省を促す内容にしてください。\n\n今週の目標：${goal||"（未設定）"}\n${surveyText}\n\n形式：内容を直接書いてください（見出しや番号は不要）。出典があれば最後に（出典：〇〇）と添えてください。`;
-  return await callClaude(prompt,300);
+  const listText=GOAL_LIST.map((g,i)=>`${i+1}. ${g}`).join("\n");
+  const prompt=`あなたはリーダーシップ研修のコーチです。以下の目標候補リストから、この受講者に最適な3つを選んでください。\n\n【目標候補リスト】\n${listText}\n\n【受講者の情報】\n${surveyText||"（360度サーベイ未入力）"}\n${sessionsText||""}\n\n【過去3週の目標と達成率】\n${histText||"（履歴なし）"}\n\n以下のJSON形式のみで返答してください（他の文章は一切不要）:\n{"goals":["目標1","目標2","目標3"]}`;
+  const text=await callClaude(prompt,200);
+  try{
+    const match=text.match(/\{[\s\S]*\}/);
+    const json=JSON.parse(match?.[0]||text);
+    return (json.goals||[]).slice(0,3);
+  }catch{
+    return text.split("\n").filter(l=>/^\d+[.．]/.test(l.trim())).map(l=>l.replace(/^\d+[.．]\s*/,"").trim()).filter(Boolean).slice(0,3);
+  }
 }
 
 // ── AI Advice ────────────────────────────────────────────────
@@ -189,8 +243,6 @@ export default function App(){
   const [adviceLoading,setAdviceLoading]     = useState(false);
   const [goalSuggestions,setGoalSuggestions] = useState([]);
   const [suggestionLoading,setSuggestionLoading] = useState(false);
-  const [aha,setAha]             = useState(null);
-  const [ahaLoading,setAhaLoading] = useState(false);
   const [weekOffset,setWeekOffset] = useState(0);
 
   // 自動保存ステータス
@@ -336,12 +388,6 @@ export default function App(){
     setGoalSuggestions(suggestions); setSuggestionLoading(false);
   }
 
-  async function handleAha(){
-    setAhaLoading(true); setAha(null);
-    const text=await fetchAha(weekData.goal,profileData);
-    setAha(text||"生成できませんでした。"); setAhaLoading(false);
-  }
-
   const navSet=o=>{setWeekOffset(o);setEditGoal(false);setAdvice(null);};
 
   const TABS=[
@@ -444,7 +490,7 @@ export default function App(){
                   </Btn>
                   <Btn onClick={handleSuggestGoals} disabled={suggestionLoading}
                     style={{marginTop:8,background:suggestionLoading?"#ddd":"#1a4a7a"}}>
-                    {suggestionLoading?"提案を生成中...":"🎯 AIに目標を提案してもらう"}
+                    {suggestionLoading?"候補を選定中...":"💡 目標の候補を見る"}
                   </Btn>
                   {goalSuggestions.length>0&&(
                     <div style={{marginTop:14}}>
@@ -625,34 +671,6 @@ export default function App(){
               </div>
             )}
 
-            {/* Ahaネタ */}
-            <Card style={{marginTop:8}}>
-              <CardTitle>Ahaネタ</CardTitle>
-              <div style={{fontSize:12,color:INK_LT,marginBottom:10,lineHeight:1.7}}>
-                今週の目標・プロフィールに合ったリーダーシップの格言・事例・問いかけを生成します
-              </div>
-              <Btn onClick={handleAha} disabled={ahaLoading}>
-                {ahaLoading?"生成中...":"💡 リーダーシップのAhaネタを見る"}
-              </Btn>
-            </Card>
-            {(aha||ahaLoading)&&(
-              <div style={{background:"linear-gradient(135deg,#111,#1e1e2e)",borderRadius:12,padding:20,marginBottom:16,color:"white"}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-                  <span style={{fontSize:18}}>💡</span>
-                  <span style={{fontSize:11,color:"rgba(255,255,255,0.5)",letterSpacing:"0.1em"}}>AHA MOMENT</span>
-                </div>
-                {ahaLoading
-                  ?<div style={{color:"rgba(255,255,255,0.4)",fontSize:12}}>生成中...</div>
-                  :<>
-                    <div style={{fontSize:13,lineHeight:1.9,color:"rgba(255,255,255,0.9)"}}>{aha}</div>
-                    <button onClick={handleAha}
-                      style={{marginTop:16,padding:"8px 16px",background:"rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.7)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:6,fontSize:12,cursor:"pointer",fontFamily:"'Noto Sans JP',sans-serif"}}>
-                      次のネタを見る →
-                    </button>
-                  </>
-                }
-              </div>
-            )}
           </>
         )}
 
