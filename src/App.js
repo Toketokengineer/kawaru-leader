@@ -140,7 +140,12 @@ async function fetchAdvice(goal,comments,achieveRate,reflection,profile){
 export default function App(){
   const [tab,setTab]             = useState("week");
   const [data,setData]           = useState({});
-  const [userId]                 = useState(()=>localStorage.getItem("kawaru_user_id")||crypto.randomUUID());
+  const [userId]                 = useState(()=>{
+    const params=new URLSearchParams(window.location.search);
+    const urlUid=params.get("uid");
+    if(urlUid){ localStorage.setItem("kawaru_user_id",urlUid); return urlUid; }
+    return localStorage.getItem("kawaru_user_id")||crypto.randomUUID();
+  });
   const [userName,setUserName]   = useState(()=>localStorage.getItem("kawaru_user_name")||"");
   const [nameInput,setNameInput] = useState("");
   const [loading,setLoading]     = useState(true);
@@ -148,6 +153,7 @@ export default function App(){
   const [goalDraft,setGoalDraft] = useState("");
   const [editName,setEditName]   = useState(false);
   const [nameDraft,setNameDraft] = useState("");
+  const [urlCopied,setUrlCopied] = useState(false);
   const [advice,setAdvice]       = useState(null);
   const [adviceLoading,setAdviceLoading] = useState(false);
   const [weekOffset,setWeekOffset]       = useState(0);
@@ -162,6 +168,11 @@ export default function App(){
 
   useEffect(()=>{
     localStorage.setItem("kawaru_user_id",userId);
+    // URLにuidを反映（ブックマーク・共有用）
+    const params=new URLSearchParams(window.location.search);
+    if(params.get("uid")!==userId){
+      window.history.replaceState(null,"",`?uid=${userId}`);
+    }
     loadAllData();
   },[]);
 
@@ -567,7 +578,7 @@ export default function App(){
                   </div>
                 </div>
               ):(
-                <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:PAPER_DK,borderRadius:8}}>
+                <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:PAPER_DK,borderRadius:8,marginBottom:12}}>
                   <div style={{width:38,height:38,borderRadius:"50%",background:"#111",display:"flex",alignItems:"center",justifyContent:"center",color:"white",fontSize:16,flexShrink:0}}>👤</div>
                   <div style={{flex:1}}>
                     <div style={{fontSize:15,fontFamily:"'Noto Serif JP',serif",color:INK}}>{userName}</div>
@@ -579,6 +590,26 @@ export default function App(){
                   </button>
                 </div>
               )}
+              {/* 個人URL */}
+              <div style={{background:"linear-gradient(135deg,#f0f4ff,#e8eeff)",border:"1px solid rgba(80,100,230,0.2)",borderRadius:10,padding:"12px 14px"}}>
+                <div style={{fontSize:11,color:"#4455bb",fontWeight:"bold",marginBottom:6,display:"flex",alignItems:"center",gap:5}}>
+                  🔗 あなた専用のURL（別端末・別ブラウザでもこのURLでアクセスすれば引き継ぎできます）
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{flex:1,fontSize:10,color:INK_LT,background:"white",borderRadius:6,padding:"6px 8px",border:`1px solid ${BORDER}`,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
+                    {`${window.location.origin}?uid=${userId}`}
+                  </div>
+                  <button
+                    onClick={()=>{
+                      navigator.clipboard.writeText(`${window.location.origin}?uid=${userId}`);
+                      setUrlCopied(true);
+                      setTimeout(()=>setUrlCopied(false),2000);
+                    }}
+                    style={{flexShrink:0,padding:"6px 12px",background:urlCopied?SUCCESS:ACCENT,color:"white",border:"none",borderRadius:6,fontSize:11,cursor:"pointer",transition:"background 0.2s",whiteSpace:"nowrap"}}>
+                    {urlCopied?"✓ コピー済":"コピー"}
+                  </button>
+                </div>
+              </div>
             </Card>
 
             {/* 360度サーベイ */}
