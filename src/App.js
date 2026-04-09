@@ -105,68 +105,6 @@ function SaveIndicator({status}){
   );
 }
 
-const GOAL_LIST=[
-  "メンバーに自分から声をかける",
-  "1日1回以上、全メンバーとコミュニケーションを取る",
-  "仕事以外の話（雑談・プライベート）をする",
-  "他部署・他チームと関係構築する",
-  "チームイベント・対話の場を設計する",
-  "1on1を定期的に実施する",
-  "1on1でメンバーに7割話してもらう",
-  "自分の意見の前に相手の意見を聞く",
-  "メンバーの話を最後まで聞く",
-  "メンバーのキャリアについて対話する",
-  "メンバーの強み・期待を言語化して伝える",
-  "小さな成果・良い行動を即時に認める",
-  "感謝・称賛を日常的に伝える",
-  "ミスを責めず「次どうするか」を考えさせる",
-  "答えではなく問いで返す",
-  "自分がやらなくていい仕事を委譲する",
-  "仕事を振る際に「WHY（意図）」を伝える",
-  "メンバーの自主性を引き出す環境をつくる",
-  "完璧主義をやめ「基準」を明確にする",
-  "週1つ、自分の仕事を手放す",
-  "チームのビジョンを自分の言葉で語る",
-  "優先順位を明確に伝える",
-  "決定事項の背景・意図を説明する",
-  "中長期目標を考える時間を持つ",
-  "仕事の社会的意義・意味を伝える",
-  "会議で全員の発言を引き出す",
-  "参加者の発言後に自分の意見を述べる",
-  "反対意見を受け止めてから議論する",
-  "役割・期待値を事前に明確にする",
-  "曖昧にせずその場で結論を出す",
-  "メール・チャットに感謝の一言を添える",
-  "チャットのトーンを柔らかくする",
-  "長いやり取りは別手段に切り替える",
-  "わかりやすく伝え、理解を確認する",
-  "返信を迅速に行う",
-  "外部情報を取り入れて共有する",
-  "ナレッジを発信する（背中を見せる）",
-  "週1回は専門知識をインプットする",
-  "日々の活動を言語化する（例：今日やった3つ）",
-  "自分の判断基準を明確に持つ",
-  "上司・他者に対しても自分の意見を述べる",
-  "判断前に必要な情報を確認する",
-  "判断を先送りしない",
-  "自分の失敗・弱さを開示する",
-  "フェアな態度で接する",
-  "否定的・攻撃的な発言を避ける",
-  "意見が出やすい空気をつくる",
-  "週1回、自分のリーダーシップを振り返る",
-  "感情的になる前に一呼吸おく",
-  "相談時間をあらかじめスケジュールに確保する",
-];
-
-// ── 目標候補（ランダム3件） ───────────────────────────────────
-function getGoalSuggestions(pastWeeks){
-  const recentGoals=new Set(pastWeeks.slice(0,3).map(([,wd])=>wd.goal).filter(Boolean));
-  const pool=GOAL_LIST.filter(g=>!recentGoals.has(g));
-  const src=pool.length>=3?pool:GOAL_LIST;
-  const shuffled=[...src].sort(()=>Math.random()-0.5);
-  return shuffled.slice(0,3);
-}
-
 // ── メインアプリ ─────────────────────────────────────────────
 export default function App(){
   const [tab,setTab]             = useState("week");
@@ -185,7 +123,6 @@ export default function App(){
   const [editName,setEditName]   = useState(false);
   const [nameDraft,setNameDraft] = useState("");
   const [urlCopied,setUrlCopied] = useState(false);
-  const [goalSuggestions,setGoalSuggestions] = useState([]);
   const [weekOffset,setWeekOffset] = useState(0);
 
   // 自動保存ステータス
@@ -317,10 +254,6 @@ export default function App(){
   const totalChecked=allWeeks.reduce((s,[,wd])=>s+Object.values(wd.days||{}).filter(d=>["done","skip"].includes(d.status)).length,0);
   const overallPct=totalChecked>0?Math.round(totalDone/totalChecked*100):0;
 
-  function handleSuggestGoals(){
-    setGoalSuggestions(getGoalSuggestions(allWeeks));
-  }
-
   const navSet=o=>{setWeekOffset(o);setEditGoal(false);};
 
   const TABS=[
@@ -420,28 +353,6 @@ export default function App(){
                   <Btn secondary style={{marginTop:12}} onClick={()=>{setGoalDraft(weekData.goal||"");setEditGoal(true);}}>
                     ✏️ {weekData.goal?"目標を変更":"目標を設定"}
                   </Btn>
-                  <Btn onClick={handleSuggestGoals}
-                    style={{marginTop:8,background:"#1a4a7a"}}>
-                    💡 目標の候補を見る
-                  </Btn>
-                  {goalSuggestions.length>0&&(
-                    <div style={{marginTop:14}}>
-                      <div style={{fontSize:11,color:INK_LT,marginBottom:8,textAlign:"center"}}>
-                        タップすると目標として設定されます
-                      </div>
-                      {goalSuggestions.map((s,i)=>(
-                        <div key={i} onClick={()=>{updateWeek({goal:s});setGoalSuggestions([]);}}
-                          style={{padding:"12px 14px",background:"linear-gradient(135deg,#f0f4ff,#e8eeff)",border:"1px solid rgba(80,100,230,0.25)",borderRadius:10,marginBottom:8,cursor:"pointer",fontSize:13,lineHeight:1.7,display:"flex",gap:10,alignItems:"flex-start",transition:"opacity 0.15s"}}
-                          onMouseEnter={e=>e.currentTarget.style.opacity="0.75"}
-                          onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
-                          <span style={{color:"#3355cc",fontWeight:"bold",flexShrink:0,fontSize:15}}>
-                            {["①","②","③"][i]}
-                          </span>
-                          <span>{s}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </>
               )}
             </Card>
