@@ -105,36 +105,6 @@ function SaveIndicator({status}){
   );
 }
 
-// ── API helpers ──────────────────────────────────────────────
-async function callClaude(prompt,maxTokens=500){
-  const res=await fetch("/api/claude",{
-    method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:maxTokens,messages:[{role:"user",content:prompt}]})
-  });
-  const data=await res.json();
-  return data.content?.map(b=>b.text).join("")||"";
-}
-
-function buildSurveyText(survey){
-  if(!survey) return "";
-  const parts=[];
-  if(survey.good)        parts.push(`良い点：${survey.good}`);
-  if(survey.improve)     parts.push(`改善点：${survey.improve}`);
-  if(survey.continueBeh) parts.push(`継続すべき行動：${survey.continueBeh}`);
-  if(survey.stop)        parts.push(`やめるべき行動：${survey.stop}`);
-  if(survey.start)       parts.push(`始めるべき行動：${survey.start}`);
-  return parts.length?`【360度サーベイ】\n${parts.join("\n")}`:"";
-}
-
-function buildSessionsText(sessions){
-  if(!sessions) return "";
-  const parts=[];
-  if(sessions.s1) parts.push(`セッション1：${sessions.s1}`);
-  if(sessions.s2) parts.push(`セッション2：${sessions.s2}`);
-  if(sessions.s3) parts.push(`セッション3：${sessions.s3}`);
-  return parts.length?`【セッションの気づき】\n${parts.join("\n")}`:"";
-}
-
 const GOAL_LIST=[
   "メンバーに自分から声をかける",
   "1日1回以上、全メンバーとコミュニケーションを取る",
@@ -188,37 +158,13 @@ const GOAL_LIST=[
   "相談時間をあらかじめスケジュールに確保する",
 ];
 
-async function fetchGoalSuggestions(profile,pastWeeks){
-  const surveyText=buildSurveyText(profile?.survey);
-  const sessionsText=buildSessionsText(profile?.sessions);
-  const histText=pastWeeks.slice(0,3).map(([k,wd])=>{
-    const done=Object.values(wd.days||{}).filter(d=>d.status==="done").length;
-    const total=Object.values(wd.days||{}).filter(d=>["done","skip"].includes(d.status)).length;
-    const p=total>0?Math.round(done/total*100):0;
-    return `${k}週〜 目標:「${wd.goal||"未設定"}」達成率:${p}%`;
-  }).join("\n");
-  const listText=GOAL_LIST.map((g,i)=>`${i+1}. ${g}`).join("\n");
-  const prompt=`あなたはリーダーシップ研修のコーチです。以下の目標候補リストから、この受講者に最適な3つを選んでください。\n\n【目標候補リスト】\n${listText}\n\n【受講者の情報】\n${surveyText||"（360度サーベイ未入力）"}\n${sessionsText||""}\n\n【過去3週の目標と達成率】\n${histText||"（履歴なし）"}\n\n以下のJSON形式のみで返答してください（他の文章は一切不要）:\n{"goals":["目標1","目標2","目標3"]}`;
-  const text=await callClaude(prompt,200);
-  try{
-    const match=text.match(/\{[\s\S]*\}/);
-    const json=JSON.parse(match?.[0]||text);
-    return (json.goals||[]).slice(0,3);
-  }catch{
-    return text.split("\n").filter(l=>/^\d+[.．]/.test(l.trim())).map(l=>l.replace(/^\d+[.．]\s*/,"").trim()).filter(Boolean).slice(0,3);
-  }
-}
-
-// ── AI Advice ────────────────────────────────────────────────
-async function fetchAdvice(goal,comments,achieveRate,reflection,profile){
-  const commentText=comments.filter(Boolean).join("\n");
-  const reflectionText=reflection?`\n週間振り返り：${reflection}`:"";
-  const surveyText=buildSurveyText(profile?.survey);
-  const sessionsText=buildSessionsText(profile?.sessions);
-  const surveyBlock=surveyText?`\n\n${surveyText}`:"";
-  const sessionsBlock=sessionsText?`\n\n${sessionsText}`:"";
-  const prompt=`あなたはリーダーシップ研修のコーチです。受講者の情報を踏まえ、以下を300字以内で日本語でアドバイスしてください。①今週の取り組みへの具体的なフィードバック②来週の目標への提案\n\n目標：${goal}\n達成率：${achieveRate}%\n日々のコメント：\n${commentText||"（コメントなし）"}${reflectionText}${surveyBlock}${sessionsBlock}`;
-  return (await callClaude(prompt))||"アドバイスを取得できませんでした。";
+// ── 目標候補（ランダム3件） ───────────────────────────────────
+function getGoalSuggestions(pastWeeks){
+  const recentGoals=new Set(pastWeeks.slice(0,3).map(([,wd])=>wd.goal).filter(Boolean));
+  const pool=GOAL_LIST.filter(g=>!recentGoals.has(g));
+  const src=pool.length>=3?pool:GOAL_LIST;
+  const shuffled=[...src].sort(()=>Math.random()-0.5);
+  return shuffled.slice(0,3);
 }
 
 // ── メインアプリ ─────────────────────────────────────────────
@@ -239,10 +185,7 @@ export default function App(){
   const [editName,setEditName]   = useState(false);
   const [nameDraft,setNameDraft] = useState("");
   const [urlCopied,setUrlCopied] = useState(false);
-  const [advice,setAdvice]                   = useState(null);
-  const [adviceLoading,setAdviceLoading]     = useState(false);
   const [goalSuggestions,setGoalSuggestions] = useState([]);
-  const [suggestionLoading,setSuggestionLoading] = useState(false);
   const [weekOffset,setWeekOffset] = useState(0);
 
   // 自動保存ステータス
@@ -374,26 +317,15 @@ export default function App(){
   const totalChecked=allWeeks.reduce((s,[,wd])=>s+Object.values(wd.days||{}).filter(d=>["done","skip"].includes(d.status)).length,0);
   const overallPct=totalChecked>0?Math.round(totalDone/totalChecked*100):0;
 
-  async function handleAdvice(){
-    if(!weekData.goal) return;
-    setAdviceLoading(true); setAdvice(null);
-    const comments=weekDates.map(d=>weekData.days[dateKey(d)]?.comment||"");
-    const text=await fetchAdvice(weekData.goal,comments,pct,weekData.reflection||"",profileData);
-    setAdvice(text); setAdviceLoading(false);
+  function handleSuggestGoals(){
+    setGoalSuggestions(getGoalSuggestions(allWeeks));
   }
 
-  async function handleSuggestGoals(){
-    setSuggestionLoading(true); setGoalSuggestions([]);
-    const suggestions=await fetchGoalSuggestions(profileData,allWeeks);
-    setGoalSuggestions(suggestions); setSuggestionLoading(false);
-  }
-
-  const navSet=o=>{setWeekOffset(o);setEditGoal(false);setAdvice(null);};
+  const navSet=o=>{setWeekOffset(o);setEditGoal(false);};
 
   const TABS=[
     {id:"week",    label:"今週", icon:"📅"},
     {id:"stats",   label:"実績", icon:"📊"},
-    {id:"ai",      label:"AI",   icon:"✦"},
     {id:"profile", label:"自分", icon:"👤"},
   ];
 
@@ -411,7 +343,7 @@ export default function App(){
             <div style={{fontSize:14,color:"rgba(255,255,255,0.75)",marginBottom:8,lineHeight:1.8}}>はじめに、お名前を入力してください</div>
             <div style={{fontSize:12,color:"rgba(255,255,255,0.35)",marginBottom:24}}>記録の識別に使用されます</div>
             <input type="text" value={nameInput} onChange={e=>setNameInput(e.target.value)}
-              onKeyDown={e=>e.key==="Enter"&&handleNameSubmit()} placeholder="例：山田 太郎" autoFocus
+              onKeyDown={e=>e.key==="Enter"&&e.preventDefault()} placeholder="例：山田 太郎" autoFocus
               style={{width:"100%",padding:"14px 16px",background:"rgba(255,255,255,0.08)",border:`1.5px solid ${nameInput.trim()?"rgba(230,51,41,0.6)":"rgba(255,255,255,0.15)"}`,borderRadius:8,color:"white",fontSize:16,fontFamily:"'Noto Sans JP',sans-serif",outline:"none",boxSizing:"border-box",marginBottom:16,transition:"border-color 0.2s"}}/>
             <button onClick={handleNameSubmit} disabled={!nameInput.trim()}
               style={{width:"100%",padding:14,background:nameInput.trim()?ACCENT:"rgba(255,255,255,0.1)",color:nameInput.trim()?"white":"rgba(255,255,255,0.3)",border:"none",borderRadius:8,fontSize:14,cursor:nameInput.trim()?"pointer":"not-allowed",fontFamily:"'Noto Sans JP',sans-serif",letterSpacing:"0.12em",transition:"all 0.2s"}}>
@@ -488,9 +420,9 @@ export default function App(){
                   <Btn secondary style={{marginTop:12}} onClick={()=>{setGoalDraft(weekData.goal||"");setEditGoal(true);}}>
                     ✏️ {weekData.goal?"目標を変更":"目標を設定"}
                   </Btn>
-                  <Btn onClick={handleSuggestGoals} disabled={suggestionLoading}
-                    style={{marginTop:8,background:suggestionLoading?"#ddd":"#1a4a7a"}}>
-                    {suggestionLoading?"候補を選定中...":"💡 目標の候補を見る"}
+                  <Btn onClick={handleSuggestGoals}
+                    style={{marginTop:8,background:"#1a4a7a"}}>
+                    💡 目標の候補を見る
                   </Btn>
                   {goalSuggestions.length>0&&(
                     <div style={{marginTop:14}}>
@@ -522,7 +454,7 @@ export default function App(){
               </CardTitle>
               {!weekData.goal&&(
                 <div style={{background:"rgba(230,51,41,0.05)",border:`1px solid rgba(230,51,41,0.15)`,borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:12,color:ACCENT,display:"flex",alignItems:"center",gap:6}}>
-                  <span>💡</span><span>目標を設定するとAIアドバイスの精度が上がります</span>
+                  <span>💡</span><span>目標を設定して取り組みを記録しましょう</span>
                 </div>
               )}
               {weekDates.map((d,i)=>{
@@ -635,44 +567,7 @@ export default function App(){
           </>
         )}
 
-        {/* ── AI ────────────────────────────────────────── */}
-        {tab==="ai"&&(
-          <>
-            <div style={{fontFamily:"'Noto Serif JP',serif",fontSize:20,color:INK,marginBottom:6}}>AIアドバイス</div>
-            <div style={{fontSize:12,color:INK_LT,marginBottom:16}}>今週の取り組みを踏まえたコーチングを受ける</div>
-            <WeekNav weekOffset={weekOffset} setWeekOffset={o=>{setWeekOffset(o);setAdvice(null);}} weekDates={weekDates}/>
-            {(profileData.survey&&Object.values(profileData.survey).some(Boolean))||(profileData.sessions&&Object.values(profileData.sessions).some(Boolean))?(
-              <div style={{background:"linear-gradient(135deg,#f0fff4,#e8fff0)",border:`1px solid rgba(46,168,74,0.3)`,borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:12,color:SUCCESS,display:"flex",alignItems:"center",gap:8}}>
-                <span>✓</span><span>360度サーベイ・セッション気づきがAIアドバイスに反映されます</span>
-              </div>
-            ):(
-              <div style={{background:"#f8f7f4",border:`1px solid ${BORDER}`,borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:12,color:INK_LT,display:"flex",alignItems:"center",gap:8}}>
-                <span>💡</span><span>「自分」タブから360度サーベイを入力するとアドバイスの精度が上がります</span>
-              </div>
-            )}
-            <Card>
-              <CardTitle>{isCurrent?"今週のまとめ":"この週のまとめ"}</CardTitle>
-              <div style={{fontSize:13,color:INK_LT,marginBottom:6}}>目標：{weekData.goal||<span style={{color:"#aaa"}}>未設定</span>}</div>
-              <div style={{fontSize:13,marginBottom:4}}>達成率：<strong style={{color:pct>=70?SUCCESS:ACCENT}}>{pct}%</strong>（{checkedDays}/{isCurrent?weekDates.filter(d=>d<=today).length:5}日）</div>
-              <Btn disabled={!weekData.goal||adviceLoading} onClick={handleAdvice}>
-                {adviceLoading?"生成中...":"✦ AIアドバイスを取得"}
-              </Btn>
-            </Card>
-            {(advice||adviceLoading)&&(
-              <div style={{background:"linear-gradient(135deg,#111,#1e1e2e)",borderRadius:12,padding:20,marginBottom:16,color:"white"}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-                  <span style={{fontSize:18}}>✦</span>
-                  <span style={{fontSize:11,color:"rgba(255,255,255,0.5)",letterSpacing:"0.1em"}}>LEADERSHIP COACH AI</span>
-                </div>
-                {adviceLoading
-                  ?<div style={{color:"rgba(255,255,255,0.4)",fontSize:12}}>分析中...</div>
-                  :<div style={{fontSize:13,lineHeight:1.9,color:"rgba(255,255,255,0.9)"}}>{advice}</div>
-                }
-              </div>
-            )}
 
-          </>
-        )}
 
         {/* ── 自分 ──────────────────────────────────────── */}
         {tab==="profile"&&(
