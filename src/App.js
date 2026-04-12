@@ -13,8 +13,8 @@ const ACCENT    = "#e63329";
 const ACCENT_LT = "#ff6b61";
 const SUCCESS   = "#2ea84a";
 const YELLOW    = "#f5c400";
-const BORDER    = "#ddd";
-const SHADOW    = "0 2px 20px rgba(0,0,0,0.08)";
+const BORDER    = "#E8E6E0";
+const SHADOW    = "0 1px 3px rgba(0,0,0,0.06)";
 
 // ── ユーティリティ ───────────────────────────────────────────
 function getWeekDates(weekOffset=0){
@@ -39,15 +39,20 @@ function Card({children,style={}}){
 }
 function CardTitle({children}){
   return(
-    <div style={{fontFamily:"'Noto Serif JP',serif",fontSize:13,color:INK_LT,letterSpacing:"0.1em",marginBottom:14,display:"flex",alignItems:"center",gap:8}}>
-      <span style={{width:3,height:16,background:ACCENT,borderRadius:2,display:"block",flexShrink:0}}/>{children}
+    <div style={{fontFamily:"'Noto Serif JP',serif",fontSize:12,color:INK_LT,letterSpacing:"0.12em",marginBottom:14,display:"flex",alignItems:"center",gap:8}}>
+      <span style={{width:3,height:16,background:YELLOW,borderRadius:2,display:"block",flexShrink:0}}/>{children}
     </div>
   );
 }
 function Btn({children,onClick,disabled,secondary,small,style={}}){
+  const base=disabled
+    ?{background:"#ddd",color:"#aaa",border:"none"}
+    :secondary
+      ?{background:"transparent",color:INK,border:"1px solid #ddd"}
+      :{background:YELLOW,color:INK,border:"none"};
   return(
     <button onClick={onClick} disabled={disabled}
-      style={{width:"100%",padding:small?9:13,background:disabled?"#ddd":secondary?INK:ACCENT,color:"white",border:"none",borderRadius:8,fontFamily:"'Noto Sans JP',sans-serif",fontSize:small?12:13,cursor:disabled?"not-allowed":"pointer",letterSpacing:"0.08em",marginTop:8,...style}}>
+      style={{width:"100%",padding:small?9:13,...base,borderRadius:8,fontFamily:"'Noto Sans JP',sans-serif",fontSize:small?12:13,cursor:disabled?"not-allowed":"pointer",letterSpacing:"0.08em",marginTop:8,...style}}>
       {children}
     </button>
   );
@@ -64,7 +69,7 @@ function CheckBtns({dk,day,onToggle,isFuture=false}){
     </div>
   );
 }
-function ProgressRing({pct,size=100,stroke=8,color=ACCENT}){
+function ProgressRing({pct,size=100,stroke=8,color=YELLOW}){
   const r=(size-stroke)/2,circ=2*Math.PI*r,offset=circ-(pct/100)*circ;
   return(
     <div style={{position:"relative",width:size,height:size}}>
@@ -89,10 +94,18 @@ function WeekNav({weekOffset,setWeekOffset,weekDates}){
       <button onClick={()=>setWeekOffset(o=>o-1)} style={{background:"none",border:"none",cursor:"pointer",fontSize:24,color:"#888",padding:"4px 10px",lineHeight:1}}>‹</button>
       <div style={{textAlign:"center"}}>
         <div style={{fontSize:12,fontFamily:"'Noto Serif JP',serif",color:INK}}>{fmt(weekDates[0])} 〜 {fmt(weekDates[4])}</div>
-        <div style={{fontSize:10,color:isCurrent?ACCENT:"#999",marginTop:2,letterSpacing:"0.08em"}}>{isCurrent?"今週":`${Math.abs(weekOffset)}週前`}</div>
+        <div style={{fontSize:10,color:isCurrent?YELLOW:"#999",marginTop:2,letterSpacing:"0.08em"}}>{isCurrent?"今週":`${Math.abs(weekOffset)}週前`}</div>
       </div>
       <button onClick={()=>setWeekOffset(o=>Math.min(0,o+1))} style={{background:"none",border:"none",cursor:isCurrent?"default":"pointer",fontSize:24,color:isCurrent?"#ddd":"#888",padding:"4px 10px",lineHeight:1}}>›</button>
     </div>
+  );
+}
+function TA({rows,value,onChange,placeholder,style={}}){
+  const [focused,setFocused]=useState(false);
+  return(
+    <textarea rows={rows} value={value} onChange={onChange} placeholder={placeholder}
+      onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)}
+      style={{...taStyle,border:`1px solid ${focused?YELLOW:BORDER}`,...style}}/>
   );
 }
 function SaveIndicator({status}){
@@ -407,14 +420,14 @@ export default function App(){
             <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",letterSpacing:"0.18em"}}>CHANGING LEADER PROGRAM</div>
           </div>
           <div style={{background:"rgba(255,255,255,0.05)",borderRadius:16,padding:32,border:"1px solid rgba(255,255,255,0.1)"}}>
-            <div style={{width:48,height:48,borderRadius:"50%",background:ACCENT,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px",fontSize:22}}>👤</div>
+            <div style={{width:48,height:48,borderRadius:"50%",background:YELLOW,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px",fontSize:22}}>👤</div>
             <div style={{fontSize:14,color:"rgba(255,255,255,0.75)",marginBottom:8,lineHeight:1.8}}>はじめに、お名前を入力してください</div>
             <div style={{fontSize:12,color:"rgba(255,255,255,0.35)",marginBottom:24}}>記録の識別に使用されます</div>
             <input type="text" value={nameInput} onChange={e=>setNameInput(e.target.value)}
               onKeyDown={e=>e.key==="Enter"&&handleNameSubmit()} placeholder="例：山田 太郎" autoFocus
-              style={{width:"100%",padding:"14px 16px",background:"rgba(255,255,255,0.08)",border:`1.5px solid ${nameInput.trim()?"rgba(230,51,41,0.6)":"rgba(255,255,255,0.15)"}`,borderRadius:8,color:"white",fontSize:16,fontFamily:"'Noto Sans JP',sans-serif",outline:"none",boxSizing:"border-box",marginBottom:16,transition:"border-color 0.2s"}}/>
+              style={{width:"100%",padding:"14px 16px",background:"rgba(255,255,255,0.08)",border:`1.5px solid ${nameInput.trim()?"rgba(245,196,0,0.6)":"rgba(255,255,255,0.15)"}`,borderRadius:8,color:"white",fontSize:16,fontFamily:"'Noto Sans JP',sans-serif",outline:"none",boxSizing:"border-box",marginBottom:16,transition:"border-color 0.2s"}}/>
             <button onClick={handleNameSubmit} disabled={!nameInput.trim()}
-              style={{width:"100%",padding:14,background:nameInput.trim()?ACCENT:"rgba(255,255,255,0.1)",color:nameInput.trim()?"white":"rgba(255,255,255,0.3)",border:"none",borderRadius:8,fontSize:14,cursor:nameInput.trim()?"pointer":"not-allowed",fontFamily:"'Noto Sans JP',sans-serif",letterSpacing:"0.12em",transition:"all 0.2s"}}>
+              style={{width:"100%",padding:14,background:nameInput.trim()?YELLOW:"rgba(255,255,255,0.1)",color:nameInput.trim()?INK:"rgba(255,255,255,0.3)",border:"none",borderRadius:8,fontSize:14,cursor:nameInput.trim()?"pointer":"not-allowed",fontFamily:"'Noto Sans JP',sans-serif",letterSpacing:"0.12em",transition:"all 0.2s"}}>
               はじめる →
             </button>
           </div>
@@ -439,7 +452,7 @@ export default function App(){
           {TABS.map(t=>(
             <button key={t.id} onClick={()=>setTab(t.id)}
               style={{flex:1,padding:"12px 4px",background:"none",border:"none",
-                color:tab===t.id?ACCENT_LT:"rgba(255,255,255,0.38)",
+                color:tab===t.id?YELLOW:"rgba(255,255,255,0.38)",
                 fontFamily:"'Noto Sans JP',sans-serif",fontSize:10,cursor:"pointer",
                 display:"flex",flexDirection:"column",alignItems:"center",gap:3,
                 letterSpacing:"0.04em",transition:"color 0.15s",WebkitTapHighlightColor:"transparent"}}>
@@ -468,13 +481,13 @@ export default function App(){
             )}
 
             {/* 目標カード */}
-            <Card style={isCurrent?{background:"linear-gradient(135deg,#fff8f6,#fff3ee)",border:`1.5px solid rgba(230,51,41,0.25)`}:{}}>
+            <Card style={isCurrent?{background:"linear-gradient(135deg,#fffef0,#fffff0)",border:`1.5px solid rgba(245,196,0,0.3)`}:{}}>
               <CardTitle>{isCurrent?"今週の目標":"この週の目標"}</CardTitle>
               {editGoal?(
                 <>
-                  <textarea value={goalDraft} onChange={e=>setGoalDraft(e.target.value)} rows={3}
+                  <TA value={goalDraft} onChange={e=>setGoalDraft(e.target.value)} rows={3}
                     placeholder="この週の目標を入力..."
-                    style={{...taStyle,fontSize:14,padding:12,border:`1.5px solid ${BORDER}`}}/>
+                    style={{fontSize:14,padding:12}}/>
                   <div style={{display:"flex",gap:8}}>
                     <Btn onClick={()=>{updateWeek({goal:goalDraft});setEditGoal(false);}}>保存する</Btn>
                     <Btn secondary style={{marginTop:8}} onClick={()=>setEditGoal(false)}>キャンセル</Btn>
@@ -537,7 +550,7 @@ export default function App(){
                       <div style={{flex:1,fontSize:12,color:INK_LT}}>
                         {d.getMonth()+1}/{d.getDate()}
                         {isToday&&(
-                          <span style={{background:ACCENT,color:"white",fontSize:10,padding:"1px 7px",borderRadius:10,marginLeft:6,fontWeight:"bold"}}>TODAY</span>
+                          <span style={{background:YELLOW,color:INK,fontSize:10,padding:"1px 7px",borderRadius:10,marginLeft:6,fontWeight:"bold"}}>TODAY</span>
                         )}
                         {day.status==="done"&&!isToday&&(
                           <span style={{background:SUCCESS,color:"white",fontSize:10,padding:"1px 7px",borderRadius:10,marginLeft:6}}>達成</span>
@@ -549,9 +562,8 @@ export default function App(){
                       <CheckBtns dk={dk} day={day} onToggle={toggleCheck} isFuture={isFuture}/>
                     </div>
                     {!isFuture&&(
-                      <textarea rows={2} value={day.comment||""} onChange={e=>setComment(dk,e.target.value)}
-                        placeholder={`${DAYS_JP[i]}曜の気づき・コメント...`}
-                        style={taStyle}/>
+                      <TA rows={2} value={day.comment||""} onChange={e=>setComment(dk,e.target.value)}
+                        placeholder={`${DAYS_JP[i]}曜の気づき・コメント...`}/>
                     )}
                   </div>
                 );
@@ -566,7 +578,7 @@ export default function App(){
                 <ProgressRing pct={pct}/>
                 <div>
                   <div style={{fontSize:13,marginBottom:6}}>
-                    <span style={{fontSize:26,fontFamily:"'Noto Serif JP',serif",color:pct>=70?SUCCESS:ACCENT}}>{checkedDays}</span>
+                    <span style={{fontSize:26,fontFamily:"'Noto Serif JP',serif",color:pct>=70?SUCCESS:YELLOW}}>{checkedDays}</span>
                     <span style={{color:"#aaa",fontSize:13}}> / {isCurrent?weekDates.filter(d=>d<=today).length:5} 日達成</span>
                   </div>
                   {isCurrent&&<div style={{fontSize:11,color:INK_LT}}>残り {5-weekDates.filter(d=>d<=today).length} 営業日</div>}
@@ -577,13 +589,13 @@ export default function App(){
             {/* 週間振り返り（自動保存） */}
             <Card>
               <CardTitle>週間振り返り</CardTitle>
-              <div style={{background:"linear-gradient(135deg,#fff8f5,#fff0ea)",border:`1.5px solid rgba(230,51,41,0.15)`,borderRadius:10,padding:"12px 14px",marginBottom:12,fontSize:12,color:INK_LT,lineHeight:1.7}}>
+              <div style={{background:"linear-gradient(135deg,#fffef5,#fffef5)",border:`1.5px solid rgba(245,196,0,0.2)`,borderRadius:10,padding:"12px 14px",marginBottom:12,fontSize:12,color:INK_LT,lineHeight:1.7}}>
                 <span style={{fontSize:16}}>📝</span>　うまくいったこと・いかなかったこと・気づきを記録しましょう
               </div>
-              <textarea rows={5} value={weekData.reflection||""}
+              <TA rows={5} value={weekData.reflection||""}
                 onChange={e=>updateWeek({reflection:e.target.value})}
                 placeholder="今週の取り組みを自由に振り返ってみましょう..."
-                style={{...taStyle,fontSize:13,padding:"10px 12px",border:`1.5px solid ${BORDER}`}}/>
+                style={{fontSize:13,padding:"10px 12px"}}/>
               <SaveIndicator status={weekSaveStatus}/>
             </Card>
           </>
@@ -597,7 +609,7 @@ export default function App(){
             <Card>
               <CardTitle>累計サマリー</CardTitle>
               <div style={{display:"flex",justifyContent:"center",margin:"12px 0"}}>
-                <ProgressRing pct={overallPct} size={120} stroke={10} color={overallPct>=70?SUCCESS:ACCENT}/>
+                <ProgressRing pct={overallPct} size={120} stroke={10} color={overallPct>=70?SUCCESS:YELLOW}/>
               </div>
               <div style={{display:"flex",gap:12}}>
                 {[{num:totalDone,unit:"日",label:"累計達成"},{num:overallPct,unit:"%",label:"総合達成率"},{num:allWeeks.length,unit:"週",label:"取組み週数"}].map(({num,unit,label})=>(
@@ -622,11 +634,11 @@ export default function App(){
                         <div style={{fontSize:13,color:INK}}>{wd.goal||"（目標未設定）"}</div>
                         <div style={{fontSize:11,color:"#aaa",marginTop:2,display:"flex",gap:6,flexWrap:"wrap"}}>
                           <span>{k.replace(/-/g,"/")} 週〜</span>
-                          {k===weekKey&&<span style={{color:ACCENT}}>今週</span>}
+                          {k===weekKey&&<span style={{color:YELLOW}}>今週</span>}
                           {wd.reflection&&<span style={{color:SUCCESS}}>📝 振り返り済</span>}
                         </div>
                       </div>
-                      <div style={{fontFamily:"'Noto Serif JP',serif",fontSize:18,color:p>=70?SUCCESS:ACCENT,minWidth:44,textAlign:"right"}}>{p}%</div>
+                      <div style={{fontFamily:"'Noto Serif JP',serif",fontSize:18,color:p>=70?SUCCESS:YELLOW,minWidth:44,textAlign:"right"}}>{p}%</div>
                     </div>
                   );
                 })
@@ -653,7 +665,7 @@ export default function App(){
             <Card>
               <CardTitle>{isCurrent?"今週のまとめ":"この週のまとめ"}</CardTitle>
               <div style={{fontSize:13,color:INK_LT,marginBottom:6}}>目標：{weekData.goal||<span style={{color:"#aaa"}}>未設定</span>}</div>
-              <div style={{fontSize:13,marginBottom:4}}>達成率：<strong style={{color:pct>=70?SUCCESS:ACCENT}}>{pct}%</strong>（{checkedDays}/{isCurrent?weekDates.filter(d=>d<=today).length:5}日）</div>
+              <div style={{fontSize:13,marginBottom:4}}>達成率：<strong style={{color:pct>=70?SUCCESS:YELLOW}}>{pct}%</strong>（{checkedDays}/{isCurrent?weekDates.filter(d=>d<=today).length:5}日）</div>
               <Btn disabled={!weekData.goal||adviceLoading} onClick={handleAdvice}>
                 {adviceLoading?"生成中...":"✦ AIアドバイスを取得"}
               </Btn>
@@ -687,7 +699,7 @@ export default function App(){
                 <div>
                   <input type="text" value={nameDraft} onChange={e=>setNameDraft(e.target.value)}
                     onKeyDown={e=>e.key==="Enter"&&handleNameChange()} autoFocus
-                    style={{...taStyle,fontSize:15,padding:"10px 12px",border:`1.5px solid ${BORDER}`,borderRadius:8,resize:"none"}}/>
+                    style={{...taStyle,fontSize:15,padding:"10px 12px",border:`1.5px solid ${BORDER}`,borderRadius:8,resize:"none",width:"100%",boxSizing:"border-box"}}/>
                   <div style={{display:"flex",gap:8}}>
                     <Btn onClick={handleNameChange} disabled={!nameDraft.trim()}>変更を保存</Btn>
                     <Btn secondary style={{marginTop:8}} onClick={()=>setEditName(false)}>キャンセル</Btn>
@@ -721,7 +733,7 @@ export default function App(){
                       setUrlCopied(true);
                       setTimeout(()=>setUrlCopied(false),2000);
                     }}
-                    style={{flexShrink:0,padding:"6px 12px",background:urlCopied?SUCCESS:ACCENT,color:"white",border:"none",borderRadius:6,fontSize:11,cursor:"pointer",transition:"background 0.2s",whiteSpace:"nowrap"}}>
+                    style={{flexShrink:0,padding:"6px 12px",background:urlCopied?SUCCESS:YELLOW,color:urlCopied?"white":INK,border:"none",borderRadius:6,fontSize:11,cursor:"pointer",transition:"background 0.2s",whiteSpace:"nowrap"}}>
                     {urlCopied?"✓ コピー済":"コピー"}
                   </button>
                 </div>
@@ -731,9 +743,9 @@ export default function App(){
             {/* 360度サーベイ */}
             <Card>
               <CardTitle>360度サーベイ</CardTitle>
-              <div style={{background:"linear-gradient(135deg,#fff8f5,#fff3ee)",border:`1.5px solid rgba(230,51,41,0.2)`,borderRadius:10,padding:"12px 14px",marginBottom:16,fontSize:12,color:INK_LT,lineHeight:1.7}}>
+              <div style={{background:"linear-gradient(135deg,#fffef5,#fffef5)",border:`1.5px solid rgba(245,196,0,0.2)`,borderRadius:10,padding:"12px 14px",marginBottom:16,fontSize:12,color:INK_LT,lineHeight:1.7}}>
                 周囲からのフィードバックを入力してください。<br/>
-                <span style={{color:ACCENT,fontWeight:"bold"}}>AIアドバイスに自動で反映されます。</span>
+                <span style={{color:"#b8920a",fontWeight:"bold"}}>AIアドバイスに自動で反映されます。</span>
               </div>
               {[
                 {key:"good",       label:"良い点",         color:SUCCESS, placeholder:"周囲から評価されている強みや良い点..."},
@@ -747,9 +759,9 @@ export default function App(){
                     <span style={{width:8,height:8,borderRadius:2,background:color,display:"inline-block",flexShrink:0}}/>
                     <span style={{fontWeight:"bold"}}>{label}</span>
                   </div>
-                  <textarea rows={3} value={profileData.survey?.[key]||""}
+                  <TA rows={3} value={profileData.survey?.[key]||""}
                     onChange={e=>updateSurvey({[key]:e.target.value})}
-                    placeholder={placeholder} style={taStyle}/>
+                    placeholder={placeholder}/>
                 </div>
               ))}
               <SaveIndicator status={profileSaveStatus}/>
@@ -772,9 +784,9 @@ export default function App(){
                     <span style={{width:8,height:8,borderRadius:2,background:YELLOW,display:"inline-block",flexShrink:0}}/>
                     <span style={{fontWeight:"bold"}}>{label}</span>
                   </div>
-                  <textarea rows={4} value={profileData.sessions?.[key]||""}
+                  <TA rows={4} value={profileData.sessions?.[key]||""}
                     onChange={e=>updateSessions({[key]:e.target.value})}
-                    placeholder={placeholder} style={taStyle}/>
+                    placeholder={placeholder}/>
                 </div>
               ))}
               <SaveIndicator status={profileSaveStatus}/>
