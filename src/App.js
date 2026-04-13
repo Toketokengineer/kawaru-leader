@@ -17,9 +17,9 @@ const BORDER    = "#E8E6E0";
 const SHADOW    = "0 1px 3px rgba(0,0,0,0.06)";
 
 // ── ユーティリティ ───────────────────────────────────────────
-function getWeekDates(){
+function getWeekDates(weekOffset=0){
   const now=new Date(), day=now.getDay(), mon=new Date(now);
-  mon.setDate(now.getDate()-(day===0?6:day-1));
+  mon.setDate(now.getDate()-(day===0?6:day-1)+weekOffset*7);
   return Array.from({length:5},(_,i)=>{ const d=new Date(mon); d.setDate(mon.getDate()+i); return d; });
 }
 function isSameDay(a,b){ return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate(); }
@@ -113,11 +113,13 @@ export default function App(){
   const [editGoal,setEditGoal]   = useState(false);
   const [goalDraft,setGoalDraft] = useState("");
   const [saveStatus,setSaveStatus] = useState("idle");
+  const [weekOffset,setWeekOffset] = useState(0);
   const saveTimer    = useRef(null);
   const latestWeekRef = useRef({});
 
   const today     = new Date();
-  const weekDates = getWeekDates();
+  const isCurrent = weekOffset===0;
+  const weekDates = getWeekDates(weekOffset);
   const weekKey   = dateKey(weekDates[0]);
   const weekData  = data[weekKey]||{goal:"",days:{},reflection:{good:"",improve:""}};
 
@@ -161,12 +163,13 @@ export default function App(){
   function updateWeek(patch){
     const base=data[weekKey]||{goal:"",days:{},reflection:{good:"",improve:""}};
     const updated={...base,...patch};
-    setData(prev=>({...prev,[weekKey]:updated}));
-    latestWeekRef.current[weekKey]=updated;
+    const key=weekKey; // クロージャ用にキャプチャ
+    setData(prev=>({...prev,[key]:updated}));
+    latestWeekRef.current[key]=updated;
     setSaveStatus("saving");
     clearTimeout(saveTimer.current);
     saveTimer.current=setTimeout(async()=>{
-      await saveWeekData(weekKey,latestWeekRef.current[weekKey]);
+      await saveWeekData(key,latestWeekRef.current[key]);
       setSaveStatus("saved");
       setTimeout(()=>setSaveStatus("idle"),2000);
     },700);
@@ -200,7 +203,9 @@ export default function App(){
   }
 
   const checkedDays = weekDates.filter(d=>weekData.days[dateKey(d)]?.status==="done").length;
-  const totalSoFar  = weekDates.filter(d=>d<=today).length;
+  const totalSoFar  = isCurrent
+    ? weekDates.filter(d=>d<=today).length
+    : weekDates.filter(d=>["done","skip"].includes(weekData.days[dateKey(d)]?.status)).length;
   const pct         = totalSoFar>0?Math.round((checkedDays/totalSoFar)*100):0;
 
   const allWeeks     = Object.entries(data).filter(([k])=>k!==PROFILE_KEY).sort((a,b)=>b[0].localeCompare(a[0]));
@@ -256,7 +261,7 @@ export default function App(){
         <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",letterSpacing:"0.14em",marginBottom:10}}>CHANGING LEADER PROGRAM</div>
         {/* タブ */}
         <div style={{display:"flex",borderTop:"1px solid rgba(255,255,255,0.08)"}}>
-          {[{id:"week",label:"今週の記録"},{id:"summary",label:"サマリー"}].map(t=>(
+          {[{id:"week",label:"週の記録"},{id:"summary",label:"サマリー"}].map(t=>(
             <button key={t.id} onClick={()=>setTab(t.id)}
               style={{flex:1,padding:"12px 4px",background:"none",border:"none",
                 borderBottom:tab===t.id?`2px solid ${YELLOW}`:"2px solid transparent",
@@ -270,6 +275,24 @@ export default function App(){
         </div>
       </div>
 
+      {/* 週ナビゲーション（週の記録タブのみ） */}
+      {tab==="week"&&(
+        <div style={{background:"white",borderBottom:`1px solid ${BORDER}`,padding:"10px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:88,zIndex:99}}>
+          <button onClick={()=>{setWeekOffset(o=>o-1);setEditGoal(false);}}
+            style={{background:"none",border:"none",cursor:"pointer",fontSize:22,color:"#888",padding:"4px 8px",lineHeight:1}}>‹</button>
+          <div style={{textAlign:"center"}}>
+            <div style={{fontSize:13,fontFamily:"'Noto Serif JP',serif",color:INK}}>
+              {weekDates[0].getMonth()+1}/{weekDates[0].getDate()} 〜 {weekDates[4].getMonth()+1}/{weekDates[4].getDate()}
+            </div>
+            <div style={{fontSize:10,marginTop:2,letterSpacing:"0.08em",color:isCurrent?YELLOW:INK_LT}}>
+              {isCurrent?"今週":weekOffset<0?`${Math.abs(weekOffset)}週前`:`${weekOffset}週後`}
+            </div>
+          </div>
+          <button onClick={()=>{setWeekOffset(o=>o+1);setEditGoal(false);}}
+            style={{background:"none",border:"none",cursor:"pointer",fontSize:22,color:"#888",padding:"4px 8px",lineHeight:1}}>›</button>
+        </div>
+      )}
+
       <div style={{padding:"20px 20px 100px"}}>
 
         {/* ── 今週の記録 ─────────────────────────────────── */}
@@ -277,7 +300,7 @@ export default function App(){
           <>
             {/* ① 今週取り組むこと */}
             <Card>
-              <CardTitle>① 今週取り組むこと</CardTitle>
+              <CardTitle>① {isCurrent?"今週":"この週"}取り組むこと</CardTitle>
               {editGoal?(
                 <>
                   <TA value={goalDraft} onChange={e=>setGoalDraft(e.target.value)} rows={3}
@@ -302,12 +325,13 @@ export default function App(){
 
             {/* ② 今週の実行 */}
             <Card>
-              <CardTitle>② 今週の実行</CardTitle>
+              <CardTitle>② {isCurrent?"今週":"この週"}の実行</CardTitle>
               {weekDates.map((d,i)=>{
                 const dk=dateKey(d);
                 const day=weekData.days[dk]||{};
-                const isToday=isSameDay(d,today);
-                const isFuture=d>today;
+                const isToday=isCurrent&&isSameDay(d,today);
+                // 現在週のみ未来日はグレーアウト。過去週・未来週はすべて入力可
+                const isFuture=isCurrent&&d>today;
                 return(
                   <div key={dk} style={{
                     marginBottom:12,
@@ -332,13 +356,18 @@ export default function App(){
 
             {/* ③ 今週の実行率 */}
             <Card>
-              <CardTitle>③ 今週の実行率</CardTitle>
+              <CardTitle>③ {isCurrent?"今週":"この週"}の実行率</CardTitle>
               <div style={{textAlign:"center",padding:"12px 0"}}>
                 <div style={{fontFamily:"'Noto Serif JP',serif",fontSize:56,color:YELLOW,lineHeight:1}}>
                   {pct}<span style={{fontSize:22}}>%</span>
                 </div>
                 <div style={{fontSize:13,color:INK_LT,marginTop:10}}>
-                  {totalSoFar}日中 {checkedDays}日 実行
+                  {isCurrent
+                    ?<>{totalSoFar}日中 {checkedDays}日 実行</>
+                    :totalSoFar>0
+                      ?<>{checkedDays}日 実行（{totalSoFar}日記録）</>
+                      :<>まだ記録がありません</>
+                  }
                 </div>
               </div>
             </Card>
