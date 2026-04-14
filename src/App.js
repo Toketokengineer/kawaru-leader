@@ -246,7 +246,7 @@ export default function App(){
             <div style={{width:44,height:44,borderRadius:"50%",background:YELLOW,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px",fontSize:20}}>👤</div>
             <div style={{fontSize:14,color:INK,marginBottom:20,textAlign:"center",lineHeight:1.8}}>氏名を入力してください</div>
             <input type="text" value={nameInput} onChange={e=>setNameInput(e.target.value)}
-              onKeyDown={e=>e.key==="Enter"&&handleNameSubmit()} placeholder="例：山田 太郎" autoFocus
+              onKeyDown={e=>e.key==="Enter"&&!e.nativeEvent.isComposing&&handleNameSubmit()} placeholder="例：山田 太郎" autoFocus
               style={{width:"100%",padding:"13px 16px",background:PAPER_DK,
                 border:`1.5px solid ${nameInput.trim()?YELLOW:BORDER}`,
                 borderRadius:8,color:INK,fontSize:16,fontFamily:"'Noto Sans JP',sans-serif",
