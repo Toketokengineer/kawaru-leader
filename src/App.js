@@ -233,17 +233,16 @@ export default function App(){
     return(
       <div style={{fontFamily:"'Noto Sans JP',sans-serif",background:"#111",color:"white",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
         <div style={{maxWidth:400,width:"100%",textAlign:"center"}}>
-          <div style={{marginBottom:36}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:8}}>
-              <img src="/logo_after.png" alt="変わるリーダー" style={{height:40,width:"auto",background:"white",borderRadius:6,padding:"2px 4px"}}/>
-              <h1 style={{fontFamily:"'Noto Serif JP',serif",fontSize:30,color:"white",letterSpacing:"0.08em",margin:0}}>変わるリーダー</h1>
+          <div style={{background:"white",borderRadius:12,padding:"16px 24px",marginBottom:24,display:"inline-flex",alignItems:"center",gap:8}}>
+            <img src="/logo_after.png" alt="変わるリーダー" style={{height:40,width:"auto"}}/>
+            <div style={{textAlign:"left"}}>
+              <h1 style={{fontFamily:"'Noto Serif JP',serif",fontSize:24,color:INK,letterSpacing:"0.08em",margin:0,lineHeight:1.2}}>変わるリーダー</h1>
+              <div style={{fontSize:10,color:INK_LT,letterSpacing:"0.18em",marginTop:2}}>LEADERSHIP PROGRAM</div>
             </div>
-            <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",letterSpacing:"0.18em"}}>LEADERSHIP PROGRAM</div>
           </div>
           <div style={{background:"rgba(255,255,255,0.05)",borderRadius:16,padding:32,border:"1px solid rgba(255,255,255,0.1)"}}>
             <div style={{width:48,height:48,borderRadius:"50%",background:YELLOW,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px",fontSize:22}}>👤</div>
-            <div style={{fontSize:14,color:"rgba(255,255,255,0.75)",marginBottom:8,lineHeight:1.8}}>はじめに、お名前を入力してください</div>
-            <div style={{fontSize:12,color:"rgba(255,255,255,0.35)",marginBottom:24}}>記録の識別に使用されます</div>
+            <div style={{fontSize:14,color:"rgba(255,255,255,0.75)",marginBottom:24,lineHeight:1.8}}>氏名を入力してください</div>
             <input type="text" value={nameInput} onChange={e=>setNameInput(e.target.value)}
               onKeyDown={e=>e.key==="Enter"&&handleNameSubmit()} placeholder="例：山田 太郎" autoFocus
               style={{width:"100%",padding:"14px 16px",background:"rgba(255,255,255,0.08)",
