@@ -234,8 +234,11 @@ export default function App(){
       <div style={{fontFamily:"'Noto Sans JP',sans-serif",background:"#111",color:"white",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
         <div style={{maxWidth:400,width:"100%",textAlign:"center"}}>
           <div style={{marginBottom:36}}>
-            <h1 style={{fontFamily:"'Noto Serif JP',serif",fontSize:30,color:"white",letterSpacing:"0.08em",margin:0,marginBottom:8}}>変わるリーダー</h1>
-            <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",letterSpacing:"0.18em"}}>CHANGING LEADER PROGRAM</div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:8}}>
+              <img src="/logo_after.png" alt="変わるリーダー" style={{height:40,width:"auto",background:"white",borderRadius:6,padding:"2px 4px"}}/>
+              <h1 style={{fontFamily:"'Noto Serif JP',serif",fontSize:30,color:"white",letterSpacing:"0.08em",margin:0}}>変わるリーダー</h1>
+            </div>
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",letterSpacing:"0.18em"}}>LEADERSHIP PROGRAM</div>
           </div>
           <div style={{background:"rgba(255,255,255,0.05)",borderRadius:16,padding:32,border:"1px solid rgba(255,255,255,0.1)"}}>
             <div style={{width:48,height:48,borderRadius:"50%",background:YELLOW,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px",fontSize:22}}>👤</div>
@@ -268,15 +271,21 @@ export default function App(){
       {loading&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(255,255,255,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999,fontSize:14,color:INK_LT}}>読み込み中...</div>}
 
       {/* ヘッダー */}
-      <div style={{background:"#111",padding:"18px 20px 0",position:"sticky",top:0,zIndex:100}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
-          <h1 style={{fontFamily:"'Noto Serif JP',serif",fontSize:17,color:"white",letterSpacing:"0.08em",margin:0}}>変わるリーダー</h1>
-          <button onClick={()=>{setShowProfile(true);setEditName(false);}}
-            style={{background:"rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.8)",fontSize:11,padding:"3px 10px",borderRadius:12,border:"none",cursor:"pointer",fontFamily:"'Noto Sans JP',sans-serif"}}>プロフィール</button>
+      <div style={{position:"sticky",top:0,zIndex:100}}>
+        {/* ロゴ・タイトルエリア（白背景） */}
+        <div style={{background:"white",padding:"14px 20px 10px",borderBottom:`1px solid ${BORDER}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <img src="/logo_after.png" alt="変わるリーダー" style={{height:28,width:"auto"}}/>
+              <h1 style={{fontFamily:"'Noto Serif JP',serif",fontSize:17,color:INK,letterSpacing:"0.08em",margin:0}}>変わるリーダー</h1>
+            </div>
+            <button onClick={()=>{setShowProfile(true);setEditName(false);}}
+              style={{background:PAPER_DK,color:INK_LT,fontSize:11,padding:"3px 10px",borderRadius:12,border:`1px solid ${BORDER}`,cursor:"pointer",fontFamily:"'Noto Sans JP',sans-serif"}}>プロフィール</button>
+          </div>
+          <div style={{fontSize:10,color:INK_LT,letterSpacing:"0.14em"}}>LEADERSHIP PROGRAM</div>
         </div>
-        <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",letterSpacing:"0.14em",marginBottom:10}}>CHANGING LEADER PROGRAM</div>
-        {/* タブ */}
-        <div style={{display:"flex",borderTop:"1px solid rgba(255,255,255,0.08)"}}>
+        {/* タブエリア（黒背景） */}
+        <div style={{background:"#111",display:"flex"}}>
           {[{id:"week",label:"記録"},{id:"summary",label:"サマリー"}].map(t=>(
             <button key={t.id} onClick={()=>setTab(t.id)}
               style={{flex:1,padding:"12px 4px",background:"none",border:"none",
@@ -439,6 +448,9 @@ export default function App(){
                       ?<>{checkedDays}日 実行（{totalSoFar}日記録）</>
                       :<>まだ記録がありません</>
                   }
+                </div>
+                <div style={{height:10,background:PAPER_DK,borderRadius:99,overflow:"hidden",margin:"8px 0 4px"}}>
+                  <div style={{height:"100%",width:`${pct}%`,background:YELLOW,borderRadius:99,transition:"width 0.8s cubic-bezier(.4,0,.2,1)"}}/>
                 </div>
               </div>
             </Card>
