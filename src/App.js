@@ -235,7 +235,7 @@ export default function App(){
         <div style={{maxWidth:400,width:"100%",textAlign:"center"}}>
           <div style={{marginBottom:36}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:8}}>
-              <img src="/logo_after.png" alt="変わるリーダー" style={{height:40,width:"auto"}}/>
+              <img src="/logo_after.png" alt="変わるリーダー" style={{height:40,width:"auto",background:"white",borderRadius:6,padding:"2px 4px"}}/>
               <h1 style={{fontFamily:"'Noto Serif JP',serif",fontSize:30,color:"white",letterSpacing:"0.08em",margin:0}}>変わるリーダー</h1>
             </div>
             <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",letterSpacing:"0.18em"}}>LEADERSHIP PROGRAM</div>
@@ -274,7 +274,7 @@ export default function App(){
       <div style={{background:"#111",padding:"18px 20px 0",position:"sticky",top:0,zIndex:100}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <img src="/logo_after.png" alt="変わるリーダー" style={{height:28,width:"auto"}}/>
+            <img src="/logo_after.png" alt="変わるリーダー" style={{height:28,width:"auto",background:"white",borderRadius:4,padding:"1px 3px"}}/>
             <h1 style={{fontFamily:"'Noto Serif JP',serif",fontSize:17,color:"white",letterSpacing:"0.08em",margin:0}}>変わるリーダー</h1>
           </div>
           <button onClick={()=>{setShowProfile(true);setEditName(false);}}
