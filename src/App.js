@@ -232,27 +232,29 @@ export default function App(){
   if(!userName){
     return(
       <div style={{fontFamily:"'Noto Sans JP',sans-serif",background:"#111",color:"white",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
-        <div style={{maxWidth:400,width:"100%",textAlign:"center"}}>
-          <div style={{background:"white",borderRadius:12,padding:"16px 24px",marginBottom:24,display:"inline-flex",alignItems:"center",gap:8}}>
-            <img src="/logo_after.png" alt="変わるリーダー" style={{height:40,width:"auto"}}/>
-            <div style={{textAlign:"left"}}>
-              <h1 style={{fontFamily:"'Noto Serif JP',serif",fontSize:24,color:INK,letterSpacing:"0.08em",margin:0,lineHeight:1.2}}>変わるリーダー</h1>
-              <div style={{fontSize:10,color:INK_LT,letterSpacing:"0.18em",marginTop:2}}>LEADERSHIP PROGRAM</div>
+        <div style={{maxWidth:400,width:"100%"}}>
+          <div style={{background:"white",borderRadius:20,padding:"32px 28px",boxShadow:"0 4px 24px rgba(0,0,0,0.3)"}}>
+            {/* ロゴ・タイトル */}
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:28,paddingBottom:20,borderBottom:`1px solid ${BORDER}`}}>
+              <img src="/logo_after.png" alt="変わるリーダー" style={{height:44,width:"auto"}}/>
+              <div>
+                <h1 style={{fontFamily:"'Noto Serif JP',serif",fontSize:22,color:INK,letterSpacing:"0.08em",margin:0,lineHeight:1.2}}>変わるリーダー</h1>
+                <div style={{fontSize:10,color:INK_LT,letterSpacing:"0.18em",marginTop:3}}>LEADERSHIP PROGRAM</div>
+              </div>
             </div>
-          </div>
-          <div style={{background:"rgba(255,255,255,0.05)",borderRadius:16,padding:32,border:"1px solid rgba(255,255,255,0.1)"}}>
-            <div style={{width:48,height:48,borderRadius:"50%",background:YELLOW,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px",fontSize:22}}>👤</div>
-            <div style={{fontSize:14,color:"rgba(255,255,255,0.75)",marginBottom:24,lineHeight:1.8}}>氏名を入力してください</div>
+            {/* 入力フォーム */}
+            <div style={{width:44,height:44,borderRadius:"50%",background:YELLOW,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px",fontSize:20}}>👤</div>
+            <div style={{fontSize:14,color:INK,marginBottom:20,textAlign:"center",lineHeight:1.8}}>氏名を入力してください</div>
             <input type="text" value={nameInput} onChange={e=>setNameInput(e.target.value)}
               onKeyDown={e=>e.key==="Enter"&&handleNameSubmit()} placeholder="例：山田 太郎" autoFocus
-              style={{width:"100%",padding:"14px 16px",background:"rgba(255,255,255,0.08)",
-                border:`1.5px solid ${nameInput.trim()?"rgba(245,196,0,0.6)":"rgba(255,255,255,0.15)"}`,
-                borderRadius:8,color:"white",fontSize:16,fontFamily:"'Noto Sans JP',sans-serif",
-                outline:"none",boxSizing:"border-box",marginBottom:16,transition:"border-color 0.2s"}}/>
+              style={{width:"100%",padding:"13px 16px",background:PAPER_DK,
+                border:`1.5px solid ${nameInput.trim()?YELLOW:BORDER}`,
+                borderRadius:8,color:INK,fontSize:16,fontFamily:"'Noto Sans JP',sans-serif",
+                outline:"none",boxSizing:"border-box",marginBottom:14,transition:"border-color 0.2s"}}/>
             <button onClick={handleNameSubmit} disabled={!nameInput.trim()}
               style={{width:"100%",padding:14,
-                background:nameInput.trim()?YELLOW:"rgba(255,255,255,0.1)",
-                color:nameInput.trim()?INK:"rgba(255,255,255,0.3)",
+                background:nameInput.trim()?YELLOW:"#ddd",
+                color:nameInput.trim()?INK:"#aaa",
                 border:"none",borderRadius:8,fontSize:14,
                 cursor:nameInput.trim()?"pointer":"not-allowed",
                 fontFamily:"'Noto Sans JP',sans-serif",letterSpacing:"0.12em",transition:"all 0.2s"}}>
