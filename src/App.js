@@ -112,8 +112,12 @@ export default function App(){
   const [loading,setLoading]     = useState(true);
   const [editGoal,setEditGoal]   = useState(false);
   const [goalDraft,setGoalDraft] = useState("");
-  const [saveStatus,setSaveStatus] = useState("idle");
-  const [weekOffset,setWeekOffset] = useState(0);
+  const [saveStatus,setSaveStatus]   = useState("idle");
+  const [weekOffset,setWeekOffset]   = useState(0);
+  const [showProfile,setShowProfile] = useState(false);
+  const [editName,setEditName]       = useState(false);
+  const [nameDraft,setNameDraft]     = useState("");
+  const [urlCopied,setUrlCopied]     = useState(false);
   const saveTimer    = useRef(null);
   const latestWeekRef = useRef({});
 
@@ -202,6 +206,17 @@ export default function App(){
     await saveWeekData(PROFILE_KEY,updated);
   }
 
+  async function handleNameChange(){
+    if(!nameDraft.trim()) return;
+    const name=nameDraft.trim();
+    setUserName(name);
+    localStorage.setItem("kawaru_user_name",name);
+    setEditName(false);
+    const updated={...(data[PROFILE_KEY]||{}),name};
+    setData(prev=>({...prev,[PROFILE_KEY]:updated}));
+    await saveWeekData(PROFILE_KEY,updated);
+  }
+
   const checkedDays = weekDates.filter(d=>weekData.days[dateKey(d)]?.status==="done").length;
   const totalSoFar  = isCurrent
     ? weekDates.filter(d=>d<=today).length
@@ -256,12 +271,13 @@ export default function App(){
       <div style={{background:"#111",padding:"18px 20px 0",position:"sticky",top:0,zIndex:100}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
           <h1 style={{fontFamily:"'Noto Serif JP',serif",fontSize:17,color:"white",letterSpacing:"0.08em",margin:0}}>変わるリーダー</h1>
-          <span style={{background:"rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.8)",fontSize:11,padding:"3px 10px",borderRadius:12}}>{userName}</span>
+          <button onClick={()=>{setShowProfile(true);setEditName(false);}}
+            style={{background:"rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.8)",fontSize:11,padding:"3px 10px",borderRadius:12,border:"none",cursor:"pointer",fontFamily:"'Noto Sans JP',sans-serif"}}>プロフィール</button>
         </div>
         <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",letterSpacing:"0.14em",marginBottom:10}}>CHANGING LEADER PROGRAM</div>
         {/* タブ */}
         <div style={{display:"flex",borderTop:"1px solid rgba(255,255,255,0.08)"}}>
-          {[{id:"week",label:"週の記録"},{id:"summary",label:"サマリー"}].map(t=>(
+          {[{id:"week",label:"記録"},{id:"summary",label:"サマリー"}].map(t=>(
             <button key={t.id} onClick={()=>setTab(t.id)}
               style={{flex:1,padding:"12px 4px",background:"none",border:"none",
                 borderBottom:tab===t.id?`2px solid ${YELLOW}`:"2px solid transparent",
@@ -274,6 +290,61 @@ export default function App(){
           ))}
         </div>
       </div>
+
+      {/* プロフィールモーダル */}
+      {showProfile&&(
+        <div onClick={()=>setShowProfile(false)}
+          style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{background:"white",borderRadius:"16px 16px 0 0",padding:24,width:"100%",maxWidth:480,boxSizing:"border-box",paddingBottom:40}}>
+            {/* ヘッダー */}
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+              <div style={{fontFamily:"'Noto Serif JP',serif",fontSize:15,color:INK}}>プロフィール</div>
+              <button onClick={()=>setShowProfile(false)}
+                style={{background:"none",border:"none",fontSize:20,color:INK_LT,cursor:"pointer",lineHeight:1,padding:"2px 6px"}}>×</button>
+            </div>
+            {/* ① 名前の変更 */}
+            <div style={{marginBottom:20}}>
+              <div style={{fontSize:11,color:INK_LT,letterSpacing:"0.08em",marginBottom:8}}>お名前</div>
+              {editName?(
+                <>
+                  <input type="text" value={nameDraft} onChange={e=>setNameDraft(e.target.value)}
+                    onKeyDown={e=>e.key==="Enter"&&handleNameChange()} autoFocus
+                    style={{...taStyle,fontSize:14,padding:"10px 12px",borderRadius:8,marginBottom:8,resize:"none"}}/>
+                  <div style={{display:"flex",gap:8}}>
+                    <Btn onClick={handleNameChange} disabled={!nameDraft.trim()} style={{flex:1}}>保存する</Btn>
+                    <Btn secondary onClick={()=>setEditName(false)} style={{flex:1}}>キャンセル</Btn>
+                  </div>
+                </>
+              ):(
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:PAPER_DK,borderRadius:8,padding:"10px 14px"}}>
+                  <span style={{fontSize:15,fontFamily:"'Noto Serif JP',serif",color:INK}}>{userName}</span>
+                  <Btn secondary small onClick={()=>{setNameDraft(userName);setEditName(true);}}>変更</Btn>
+                </div>
+              )}
+            </div>
+            {/* ② 個人URL */}
+            <div>
+              <div style={{fontSize:11,color:INK_LT,letterSpacing:"0.08em",marginBottom:8}}>あなた専用のURL</div>
+              <div style={{fontSize:10,color:INK_LT,marginBottom:8,lineHeight:1.6}}>別端末・別ブラウザでもこのURLでアクセスすればデータを引き継げます</div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <div style={{flex:1,fontSize:10,color:INK_LT,background:PAPER_DK,borderRadius:6,padding:"7px 10px",border:`1px solid ${BORDER}`,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
+                  {`${window.location.origin}?uid=${userId}`}
+                </div>
+                <button
+                  onClick={()=>{
+                    navigator.clipboard.writeText(`${window.location.origin}?uid=${userId}`);
+                    setUrlCopied(true);
+                    setTimeout(()=>setUrlCopied(false),2000);
+                  }}
+                  style={{flexShrink:0,padding:"7px 12px",background:urlCopied?SUCCESS:YELLOW,color:urlCopied?"white":INK,border:"none",borderRadius:6,fontSize:11,cursor:"pointer",transition:"background 0.2s",whiteSpace:"nowrap",fontFamily:"'Noto Sans JP',sans-serif"}}>
+                  {urlCopied?"✓ コピー済":"コピー"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 週ナビゲーション（週の記録タブのみ） */}
       {tab==="week"&&(
@@ -300,7 +371,7 @@ export default function App(){
           <>
             {/* ① 今週取り組むこと */}
             <Card>
-              <CardTitle>① {isCurrent?"今週":"この週"}取り組むこと</CardTitle>
+              <CardTitle>① {isCurrent?"今週":"この週"}のベンジャミン</CardTitle>
               {editGoal?(
                 <>
                   <TA value={goalDraft} onChange={e=>setGoalDraft(e.target.value)} rows={3}
@@ -325,7 +396,7 @@ export default function App(){
 
             {/* ② 今週の実行 */}
             <Card>
-              <CardTitle>② {isCurrent?"今週":"この週"}の実行</CardTitle>
+              <CardTitle>② 実践状況</CardTitle>
               {weekDates.map((d,i)=>{
                 const dk=dateKey(d);
                 const day=weekData.days[dk]||{};
@@ -372,19 +443,13 @@ export default function App(){
               </div>
             </Card>
 
-            {/* ④ 振り返り */}
+            {/* ④ 気づき・学び */}
             <Card>
-              <CardTitle>④ 振り返り</CardTitle>
-              <div style={{marginBottom:16}}>
-                <div style={{fontSize:12,color:INK,marginBottom:6,fontWeight:"bold"}}>① できたこと</div>
-                <TA rows={3} value={reflection.good} onChange={e=>updateReflection({good:e.target.value})}
-                  placeholder="今週うまくいったこと、実践できたこと..."/>
-              </div>
-              <div>
-                <div style={{fontSize:12,color:INK,marginBottom:6,fontWeight:"bold"}}>② 改善すること</div>
-                <TA rows={3} value={reflection.improve} onChange={e=>updateReflection({improve:e.target.value})}
-                  placeholder="次週に向けて改善したいこと..."/>
-              </div>
+              <CardTitle>④ 気づき・学び</CardTitle>
+              <TA rows={5}
+                value={typeof weekData.reflection==="string"?weekData.reflection:(weekData.reflection?.good||"")}
+                onChange={e=>updateWeek({reflection:e.target.value})}
+                placeholder="今週の気づき・学びを自由に書いてください..."/>
               <SaveIndicator status={saveStatus}/>
             </Card>
           </>
@@ -394,25 +459,19 @@ export default function App(){
         {tab==="summary"&&(
           <>
             <Card>
-              <CardTitle>累計サマリー</CardTitle>
-              <div style={{display:"flex",gap:12}}>
-                {[
-                  {num:totalDone,   unit:"日", label:"累計達成"},
-                  {num:overallPct,  unit:"%",  label:"総合達成率"},
-                  {num:allWeeks.length, unit:"週", label:"取組み週数"},
-                ].map(({num,unit,label})=>(
-                  <div key={label} style={{flex:1,background:PAPER_DK,borderRadius:10,padding:"14px 10px",textAlign:"center"}}>
-                    <div style={{fontFamily:"'Noto Serif JP',serif",fontSize:26,color:INK,lineHeight:1}}>
-                      {num}<span style={{fontSize:13}}>{unit}</span>
-                    </div>
-                    <div style={{fontSize:10,color:INK_LT,marginTop:4,letterSpacing:"0.08em"}}>{label}</div>
+              <CardTitle>総合サマリー</CardTitle>
+              <div style={{display:"flex",justifyContent:"center"}}>
+                <div style={{background:PAPER_DK,borderRadius:10,padding:"20px 40px",textAlign:"center"}}>
+                  <div style={{fontFamily:"'Noto Serif JP',serif",fontSize:48,color:overallPct>=70?SUCCESS:YELLOW,lineHeight:1}}>
+                    {overallPct}<span style={{fontSize:20}}>%</span>
                   </div>
-                ))}
+                  <div style={{fontSize:11,color:INK_LT,marginTop:6,letterSpacing:"0.08em"}}>総合達成率</div>
+                </div>
               </div>
             </Card>
 
             <Card>
-              <CardTitle>週別履歴</CardTitle>
+              <CardTitle>週別サマリー</CardTitle>
               {allWeeks.length===0
                 ?<div style={{color:"#aaa",fontSize:13,textAlign:"center",padding:"20px 0"}}>まだ履歴がありません</div>
                 :allWeeks.map(([k,wd])=>{
