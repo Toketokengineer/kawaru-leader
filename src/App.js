@@ -1,263 +1,438 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "./supabase";
 
-const DAYS_JP   = ["月","火","水","木","金"];
+// ── Constants ─────────────────────────────────────────────────
+const DAYS_JP     = ["月","火","水","木","金"];
 const PROFILE_KEY = "__profile__";
 
-// ── カラー ──────────────────────────────────────────────────
-const INK       = "#111";
-const INK_LT    = "#555";
-const PAPER     = "#faf9f6";
-const PAPER_DK  = "#f0ede6";
-const ACCENT    = "#e63329";   // ✕ボタン・警告のみ
-const SUCCESS   = "#2ea84a";
-const YELLOW    = "#f5c400";   // メインアクセント
-const YELLOW_DK = "#d4aa00";   // ホバー用（将来拡張）
-const BORDER    = "#E8E6E0";
-const SHADOW    = "0 1px 3px rgba(0,0,0,0.06)";
-
-// ── ユーティリティ ───────────────────────────────────────────
-function getWeekDates(weekOffset=0){
-  const now=new Date(), day=now.getDay(), mon=new Date(now);
-  mon.setDate(now.getDate()-(day===0?6:day-1)+weekOffset*7);
-  return Array.from({length:5},(_,i)=>{ const d=new Date(mon); d.setDate(mon.getDate()+i); return d; });
-}
-function isSameDay(a,b){ return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate(); }
-function dateKey(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
-
-// ── 共通スタイル ─────────────────────────────────────────────
-const taStyle={
-  width:"100%",fontFamily:"'Noto Sans JP',sans-serif",fontSize:12,
-  padding:"8px 10px",border:`1px solid ${BORDER}`,borderRadius:6,
-  background:PAPER_DK,color:INK,resize:"none",outline:"none",
-  lineHeight:1.7,boxSizing:"border-box",
-};
-
-// ── 共通コンポーネント（App外定義） ──────────────────────────
-function Card({children,style={}}){
-  return <div style={{background:"white",borderRadius:12,padding:20,marginBottom:16,boxShadow:SHADOW,border:`1px solid ${BORDER}`,...style}}>{children}</div>;
+// ── Utilities ─────────────────────────────────────────────────
+function getMondayOf(weekOffset = 0) {
+  const now = new Date(), day = now.getDay();
+  const mon = new Date(now);
+  mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1) + weekOffset * 7);
+  mon.setHours(0, 0, 0, 0);
+  return mon;
 }
 
-function CardTitle({children}){
-  return(
-    <div style={{fontFamily:"'Noto Serif JP',serif",fontSize:12,color:INK_LT,letterSpacing:"0.12em",marginBottom:14,display:"flex",alignItems:"center",gap:8}}>
-      <span style={{width:3,height:16,background:YELLOW,borderRadius:2,display:"block",flexShrink:0}}/>{children}
+function getWeekDates(weekOffset = 0) {
+  const mon = getMondayOf(weekOffset);
+  return Array.from({ length: 5 }, (_, i) => {
+    const d = new Date(mon);
+    d.setDate(mon.getDate() + i);
+    return d;
+  });
+}
+
+function dateKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function fmtMD(d) { return `${d.getMonth()+1}/${d.getDate()}`; }
+
+function weekOffsetFromKey(weekKey) {
+  const mon0 = getMondayOf(0);
+  const [y, m, day] = weekKey.split('-').map(Number);
+  const monK = new Date(y, m - 1, day);
+  return Math.round((monK - mon0) / (7 * 24 * 3600 * 1000));
+}
+
+// Normalize old status values ('done'→'o', 'skip'→'x', 'half'→'n')
+function normalizeStatus(s) {
+  if (!s) return null;
+  if (s === 'done') return 'o';
+  if (s === 'skip') return 'x';
+  if (s === 'half') return 'n';
+  return s;
+}
+
+function normalizeWeekData(wd) {
+  if (!wd) return { goal: "", days: {}, reflection: "" };
+  const days = {};
+  Object.entries(wd.days || {}).forEach(([k, v]) => {
+    days[k] = { ...v, status: normalizeStatus(v.status) };
+  });
+  const reflection =
+    typeof wd.reflection === "string"
+      ? wd.reflection
+      : (wd.reflection?.good || "");
+  return { ...wd, days, reflection };
+}
+
+// ── Components ─────────────────────────────────────────────────
+
+function LogoSVG() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+      <circle cx="14" cy="7" r="4" fill="#f5c400"/>
+      <path d="M7 28c0-7 14-7 14 0" fill="#f5c400"/>
+      <path d="M4 18c2-4 18-4 20 0" stroke="#f5c400" strokeWidth="1.5" fill="none"/>
+    </svg>
+  );
+}
+
+function SectionTitle({ label, children }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+      <div style={{ width: 3, height: 18, background: "#f5c400", borderRadius: 2, flexShrink: 0 }} />
+      <span style={{ fontFamily: "'Noto Sans JP',sans-serif", fontSize: 13, fontWeight: 600, color: "#111" }}>
+        {label && <span style={{ color: "#888", marginRight: 4 }}>{label}</span>}
+        {children}
+      </span>
     </div>
   );
 }
 
-function Btn({children,onClick,disabled,secondary,small,style={}}){
-  const base=disabled
-    ?{background:"#ddd",color:"#aaa",border:"none"}
-    :secondary
-      ?{background:"transparent",color:INK,border:`1px solid ${BORDER}`}
-      :{background:YELLOW,color:INK,border:"none"};
-  return(
-    <button onClick={onClick} disabled={disabled}
-      style={{padding:small?"7px 14px":"11px 16px",...base,borderRadius:8,
-        fontFamily:"'Noto Sans JP',sans-serif",fontSize:small?12:13,
-        cursor:disabled?"not-allowed":"pointer",letterSpacing:"0.08em",...style}}>
+function Card({ children, style = {} }) {
+  return (
+    <div style={{
+      background: "#fff", border: "1px solid #e8e5e0",
+      borderRadius: 12, padding: "20px 16px",
+      boxShadow: "0 1px 4px rgba(0,0,0,0.05)", ...style,
+    }}>
       {children}
+    </div>
+  );
+}
+
+function StatusBtn({ type, selected, onClick }) {
+  const cfg = {
+    o: { label: "○", selBg: "#f5c400", selColor: "#111" },
+    x: { label: "×", selBg: "#e63329", selColor: "#fff" },
+    n: { label: "—", selBg: "#bbbbbb", selColor: "#fff" },
+  }[type];
+  const isSel = selected === type;
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        width: 38, height: 38, borderRadius: "50%",
+        border: `1.5px solid ${isSel ? cfg.selBg : "#d5d0c8"}`,
+        background: isSel ? cfg.selBg : "#fff",
+        color: isSel ? cfg.selColor : "#aaa",
+        fontSize: type === "n" ? 16 : 18,
+        fontWeight: 600, cursor: "pointer",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        transition: "all 0.15s ease", flexShrink: 0,
+        fontFamily: "'Noto Sans JP',sans-serif", lineHeight: 1,
+      }}
+    >
+      {cfg.label}
     </button>
   );
 }
 
-function CheckBtns({dk,day,onToggle,isFuture=false}){
-  return(
-    <div style={{display:"flex",gap:5}}>
-      {[{value:"done",label:"○",bg:SUCCESS},{value:"skip",label:"✕",bg:ACCENT},{value:"half",label:"ー",bg:"#888"}].map(({value,label,bg})=>(
-        <button key={value} onClick={()=>!isFuture&&onToggle(dk,value)} disabled={isFuture}
-          style={{width:36,height:36,borderRadius:"50%",border:`1.5px solid ${day.status===value?bg:BORDER}`,
-            background:day.status===value?bg:"white",cursor:isFuture?"default":"pointer",
-            fontSize:14,fontWeight:"bold",color:day.status===value?"white":INK,
-            display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.15s",flexShrink:0}}>
-          {label}
+function ProgressBar({ rate, animated = false }) {
+  const [width, setWidth] = useState(animated ? 0 : rate);
+  useEffect(() => {
+    if (animated) {
+      const t = setTimeout(() => setWidth(rate), 80);
+      return () => clearTimeout(t);
+    } else {
+      setWidth(rate);
+    }
+  }, [rate, animated]);
+  return (
+    <div style={{ width: "100%", height: 8, background: "#ede9e0", borderRadius: 100, overflow: "hidden" }}>
+      <div style={{
+        height: "100%", width: `${width}%`,
+        background: "#f5c400", borderRadius: 100,
+        transition: "width 0.9s cubic-bezier(0.4,0,0.2,1)",
+      }} />
+    </div>
+  );
+}
+
+function SaveIndicator({ status }) {
+  if (status === "idle") return null;
+  return (
+    <div style={{
+      fontSize: 11, textAlign: "right", marginTop: 6,
+      color: status === "saved" ? "#2ea84a" : "#aaa",
+    }}>
+      {status === "saving" ? "保存中..." : "✓ 保存済"}
+    </div>
+  );
+}
+
+function ProfileModal({ userName, userId, onClose, onSave }) {
+  const [val, setVal] = useState(userName);
+  const [copied, setCopied] = useState(false);
+  const url = `${window.location.origin}?uid=${userId}`;
+
+  function handleSave() {
+    if (val.trim()) { onSave(val.trim()); }
+    onClose();
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 200, animation: "overlayIn 0.2s ease",
+        padding: "0 20px",
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: "#fff", borderRadius: 16, width: "100%", maxWidth: 400,
+          padding: 24, animation: "modalIn 0.25s cubic-bezier(0.34,1.56,0.64,1)",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <span style={{ fontFamily: "'Noto Serif JP',serif", fontSize: 16, fontWeight: 700, color: "#111" }}>プロフィール</span>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, color: "#888", cursor: "pointer", lineHeight: 1 }}>×</button>
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ fontSize: 12, color: "#555", fontWeight: 500, display: "block", marginBottom: 6 }}>お名前</label>
+          <input
+            value={val}
+            onChange={e => setVal(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && !e.nativeEvent.isComposing && handleSave()}
+            placeholder="名前を入力..."
+            style={{
+              width: "100%", padding: "10px 12px",
+              border: "1.5px solid #e0ddd6", borderRadius: 8,
+              fontSize: 14, fontFamily: "'Noto Sans JP',sans-serif",
+              color: "#111", background: "#faf9f6", outline: "none",
+            }}
+          />
+        </div>
+
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ fontSize: 12, color: "#555", fontWeight: 500, display: "block", marginBottom: 6 }}>共有URL</label>
+          <div style={{
+            padding: "10px 12px", background: "#f0ede6", borderRadius: 8,
+            fontSize: 12, color: "#888", wordBreak: "break-all", fontFamily: "monospace",
+          }}>
+            {url}
+          </div>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(url);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            }}
+            style={{
+              marginTop: 8, width: "100%", padding: "8px",
+              background: copied ? "#2ea84a" : "#f5f3ee",
+              color: copied ? "#fff" : "#555",
+              border: "none", borderRadius: 6, fontSize: 12,
+              cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif",
+              transition: "all 0.2s",
+            }}
+          >
+            {copied ? "✓ コピー済み" : "URLをコピー"}
+          </button>
+        </div>
+
+        <button
+          onClick={handleSave}
+          style={{
+            width: "100%", padding: "12px",
+            background: "#111", color: "#fff",
+            border: "none", borderRadius: 8,
+            fontSize: 14, fontWeight: 600,
+            fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer",
+          }}
+        >
+          保存する
         </button>
-      ))}
+      </div>
     </div>
   );
 }
 
-function TA({rows,value,onChange,placeholder,style={}}){
-  const [focused,setFocused]=useState(false);
-  return(
-    <textarea rows={rows} value={value} onChange={onChange} placeholder={placeholder}
-      onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)}
-      style={{...taStyle,border:`1px solid ${focused?YELLOW:BORDER}`,...style}}/>
-  );
-}
-
-function SaveIndicator({status}){
-  if(status==="idle") return <div style={{height:18}}/>;
-  return(
-    <div style={{height:18,fontSize:11,textAlign:"right",marginTop:4,transition:"all 0.2s",
-      color:status==="saved"?SUCCESS:INK_LT}}>
-      {status==="saving"?"保存中...":"✓ 自動保存済"}
-    </div>
-  );
-}
-
-// ── メインアプリ ─────────────────────────────────────────────
-export default function App(){
-  const [tab,setTab]             = useState("week");
-  const [data,setData]           = useState({});
-  const [userId]                 = useState(()=>{
-    const params=new URLSearchParams(window.location.search);
-    const urlUid=params.get("uid");
-    if(urlUid){ localStorage.setItem("kawaru_user_id",urlUid); return urlUid; }
-    return localStorage.getItem("kawaru_user_id")||crypto.randomUUID();
+// ── Main App ───────────────────────────────────────────────────
+export default function App() {
+  const [tab, setTab]                   = useState("記録");
+  const [data, setData]                 = useState({});
+  const [userId]                        = useState(() => {
+    const params  = new URLSearchParams(window.location.search);
+    const urlUid  = params.get("uid");
+    if (urlUid) { localStorage.setItem("kawaru_user_id", urlUid); return urlUid; }
+    const stored  = localStorage.getItem("kawaru_user_id");
+    if (stored) return stored;
+    const id = crypto.randomUUID();
+    localStorage.setItem("kawaru_user_id", id);
+    return id;
   });
-  const [userName,setUserName]   = useState(()=>localStorage.getItem("kawaru_user_name")||"");
-  const [nameInput,setNameInput] = useState("");
-  const [loading,setLoading]     = useState(true);
-  const [editGoal,setEditGoal]   = useState(false);
-  const [goalDraft,setGoalDraft] = useState("");
-  const [saveStatus,setSaveStatus]   = useState("idle");
-  const [weekOffset,setWeekOffset]   = useState(0);
-  const [showProfile,setShowProfile] = useState(false);
-  const [editName,setEditName]       = useState(false);
-  const [nameDraft,setNameDraft]     = useState("");
-  const [urlCopied,setUrlCopied]     = useState(false);
-  const saveTimer    = useRef(null);
+  const [userName, setUserName]         = useState(() => localStorage.getItem("kawaru_user_name") || "");
+  const [nameInput, setNameInput]       = useState("");
+  const [loading, setLoading]           = useState(true);
+  const [weekOffset, setWeekOffset]     = useState(0);
+  const [editingGoal, setEditingGoal]   = useState(false);
+  const [goalDraft, setGoalDraft]       = useState("");
+  const [saveStatus, setSaveStatus]     = useState("idle");
+  const [showProfile, setShowProfile]   = useState(false);
+  const saveTimer     = useRef(null);
   const latestWeekRef = useRef({});
+  const scrollRef     = useRef(null);
 
-  const today     = new Date();
-  const isCurrent = weekOffset===0;
   const weekDates = getWeekDates(weekOffset);
   const weekKey   = dateKey(weekDates[0]);
-  const weekData  = data[weekKey]||{goal:"",days:{},reflection:{good:"",improve:""}};
+  const isCurrent = weekOffset === 0;
+  const weekData  = normalizeWeekData(data[weekKey]);
 
-  // 振り返りの後方互換（旧：文字列 → 新：オブジェクト）
-  const reflection = typeof weekData.reflection==="string"
-    ?{good:weekData.reflection,improve:""}
-    :(weekData.reflection||{good:"",improve:""});
-
-  useEffect(()=>{
-    localStorage.setItem("kawaru_user_id",userId);
-    const params=new URLSearchParams(window.location.search);
-    if(params.get("uid")!==userId){
-      window.history.replaceState(null,"",`?uid=${userId}`);
+  useEffect(() => {
+    localStorage.setItem("kawaru_user_id", userId);
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("uid") !== userId) {
+      window.history.replaceState(null, "", `?uid=${userId}`);
     }
     loadAllData();
-  },[]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function loadAllData(){
+  async function loadAllData() {
     setLoading(true);
-    const {data:rows}=await supabase.from("entries").select("*").eq("user_id",userId);
-    if(rows){
-      const obj={};
-      rows.forEach(r=>{ obj[r.week_key]=r.data; });
+    const { data: rows } = await supabase.from("entries").select("*").eq("user_id", userId);
+    if (rows) {
+      const obj = {};
+      rows.forEach(r => { obj[r.week_key] = normalizeWeekData(r.data); });
       setData(obj);
-      const profile=obj[PROFILE_KEY];
-      if(profile?.name&&!localStorage.getItem("kawaru_user_name")){
+      const profile = obj[PROFILE_KEY];
+      if (profile?.name && !localStorage.getItem("kawaru_user_name")) {
         setUserName(profile.name);
-        localStorage.setItem("kawaru_user_name",profile.name);
+        localStorage.setItem("kawaru_user_name", profile.name);
       }
     }
     setLoading(false);
   }
 
-  async function saveWeekData(key,weekDataToSave){
+  async function saveWeekData(key, weekDataToSave) {
     await supabase.from("entries").upsert(
-      {user_id:userId,week_key:key,data:weekDataToSave,updated_at:new Date().toISOString()},
-      {onConflict:"user_id,week_key"}
+      { user_id: userId, week_key: key, data: weekDataToSave, updated_at: new Date().toISOString() },
+      { onConflict: "user_id,week_key" }
     );
   }
 
-  function updateWeek(patch){
-    const base=data[weekKey]||{goal:"",days:{},reflection:{good:"",improve:""}};
-    const updated={...base,...patch};
-    const key=weekKey; // クロージャ用にキャプチャ
-    setData(prev=>({...prev,[key]:updated}));
-    latestWeekRef.current[key]=updated;
+  function updateWeek(patch) {
+    const base    = data[weekKey] || { goal: "", days: {}, reflection: "" };
+    const updated = { ...base, ...patch };
+    const key     = weekKey;
+    setData(prev => ({ ...prev, [key]: updated }));
+    latestWeekRef.current[key] = updated;
     setSaveStatus("saving");
     clearTimeout(saveTimer.current);
-    saveTimer.current=setTimeout(async()=>{
-      await saveWeekData(key,latestWeekRef.current[key]);
+    saveTimer.current = setTimeout(async () => {
+      await saveWeekData(key, latestWeekRef.current[key]);
       setSaveStatus("saved");
-      setTimeout(()=>setSaveStatus("idle"),2000);
-    },700);
+      setTimeout(() => setSaveStatus("idle"), 2000);
+    }, 700);
   }
 
-  function toggleCheck(dk,value){
-    const days={...weekData.days};
-    if(days[dk]?.status===value) days[dk]={...days[dk],status:null};
-    else days[dk]={...(days[dk]||{}),status:value};
-    updateWeek({days});
+  function toggleStatus(dk, value) {
+    const days = { ...weekData.days };
+    if (days[dk]?.status === value) days[dk] = { ...days[dk], status: null };
+    else days[dk] = { ...(days[dk] || {}), status: value };
+    updateWeek({ days });
   }
 
-  function setComment(dk,text){
-    const days={...weekData.days};
-    days[dk]={...(days[dk]||{}),comment:text};
-    updateWeek({days});
+  function setComment(dk, text) {
+    const days = { ...weekData.days };
+    days[dk] = { ...(days[dk] || {}), comment: text };
+    updateWeek({ days });
   }
 
-  function updateReflection(patch){
-    updateWeek({reflection:{...reflection,...patch}});
-  }
-
-  async function handleNameSubmit(){
-    if(!nameInput.trim()) return;
-    const name=nameInput.trim();
+  async function handleNameSubmit() {
+    if (!nameInput.trim()) return;
+    const name = nameInput.trim();
     setUserName(name);
-    localStorage.setItem("kawaru_user_name",name);
-    const updated={...(data[PROFILE_KEY]||{}),name};
-    setData(prev=>({...prev,[PROFILE_KEY]:updated}));
-    await saveWeekData(PROFILE_KEY,updated);
+    localStorage.setItem("kawaru_user_name", name);
+    const updated = { ...(data[PROFILE_KEY] || {}), name };
+    setData(prev => ({ ...prev, [PROFILE_KEY]: updated }));
+    await saveWeekData(PROFILE_KEY, updated);
   }
 
-  async function handleNameChange(){
-    if(!nameDraft.trim()) return;
-    const name=nameDraft.trim();
+  async function handleNameSave(name) {
+    if (!name) return;
     setUserName(name);
-    localStorage.setItem("kawaru_user_name",name);
-    setEditName(false);
-    const updated={...(data[PROFILE_KEY]||{}),name};
-    setData(prev=>({...prev,[PROFILE_KEY]:updated}));
-    await saveWeekData(PROFILE_KEY,updated);
+    localStorage.setItem("kawaru_user_name", name);
+    const updated = { ...(data[PROFILE_KEY] || {}), name };
+    setData(prev => ({ ...prev, [PROFILE_KEY]: updated }));
+    await saveWeekData(PROFILE_KEY, updated);
   }
 
-  const checkedDays = weekDates.filter(d=>weekData.days[dateKey(d)]?.status==="done").length;
-  const totalSoFar  = isCurrent
-    ? weekDates.filter(d=>d<=today).length
-    : weekDates.filter(d=>["done","skip"].includes(weekData.days[dateKey(d)]?.status)).length;
-  const pct         = totalSoFar>0?Math.round((checkedDays/totalSoFar)*100):0;
+  // Derived stats
+  const doneCount  = weekDates.filter(d => weekData.days[dateKey(d)]?.status === "o").length;
+  const rate       = Math.round(doneCount / 5 * 100);
 
-  const allWeeks     = Object.entries(data).filter(([k])=>k!==PROFILE_KEY).sort((a,b)=>b[0].localeCompare(a[0]));
-  const totalDone    = allWeeks.reduce((s,[,wd])=>s+Object.values(wd.days||{}).filter(d=>d.status==="done").length,0);
-  const totalChecked = allWeeks.reduce((s,[,wd])=>s+Object.values(wd.days||{}).filter(d=>["done","skip"].includes(d.status)).length,0);
-  const overallPct   = totalChecked>0?Math.round(totalDone/totalChecked*100):0;
+  const allWeeks      = Object.entries(data).filter(([k]) => k !== PROFILE_KEY).sort((a, b) => b[0].localeCompare(a[0]));
+  const totalDone     = allWeeks.reduce((s, [, wd]) => s + Object.values(wd.days || {}).filter(d => d.status === "o").length, 0);
+  const totalPossible = allWeeks.length * 5;
+  const overallRate   = totalPossible > 0 ? Math.round(totalDone / totalPossible * 100) : 0;
 
-  // ── 名前入力画面 ──────────────────────────────────────────
-  if(!userName){
-    return(
-      <div style={{fontFamily:"'Noto Sans JP',sans-serif",background:"#111",color:"white",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
-        <div style={{maxWidth:400,width:"100%"}}>
-          <div style={{background:"white",borderRadius:20,padding:"32px 28px",boxShadow:"0 4px 24px rgba(0,0,0,0.3)"}}>
-            {/* ロゴ・タイトル */}
-            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:28,paddingBottom:20,borderBottom:`1px solid ${BORDER}`}}>
-              <img src="/logo_after.png" alt="変わるリーダー" style={{height:44,width:"auto"}}/>
+  // ── Name input screen ─────────────────────────────────────
+  if (!userName) {
+    return (
+      <div style={{
+        fontFamily: "'Noto Sans JP',sans-serif",
+        background: "#111", minHeight: "100vh",
+        display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center", padding: 24,
+      }}>
+        <div style={{ maxWidth: 400, width: "100%" }}>
+          <div style={{
+            background: "white", borderRadius: 20,
+            padding: "32px 28px",
+            boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
+          }}>
+            {/* Logo + title */}
+            <div style={{
+              display: "flex", alignItems: "center", gap: 10,
+              marginBottom: 28, paddingBottom: 20,
+              borderBottom: "1px solid #e8e5e0",
+            }}>
+              <LogoSVG />
               <div>
-                <h1 style={{fontFamily:"'Noto Serif JP',serif",fontSize:22,color:INK,letterSpacing:"0.08em",margin:0,lineHeight:1.2}}>変わるリーダー</h1>
-                <div style={{fontSize:10,color:INK_LT,letterSpacing:"0.18em",marginTop:3}}>LEADERSHIP PROGRAM</div>
+                <h1 style={{
+                  fontFamily: "'Noto Serif JP',serif",
+                  fontSize: 20, fontWeight: 700, color: "#111",
+                  letterSpacing: "0.04em", margin: 0, lineHeight: 1.2,
+                }}>変わるリーダー</h1>
+                <div style={{ fontSize: 9, color: "#888", letterSpacing: "0.14em", marginTop: 3, fontWeight: 500 }}>
+                  LEADERSHIP PROGRAM
+                </div>
               </div>
             </div>
-            {/* 入力フォーム */}
-            <div style={{width:44,height:44,borderRadius:"50%",background:YELLOW,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px",fontSize:20}}>👤</div>
-            <div style={{fontSize:14,color:INK,marginBottom:20,textAlign:"center",lineHeight:1.8}}>氏名を入力してください</div>
-            <input type="text" value={nameInput} onChange={e=>setNameInput(e.target.value)}
-              onKeyDown={e=>e.key==="Enter"&&!e.nativeEvent.isComposing&&handleNameSubmit()} placeholder="例：山田 太郎" autoFocus
-              style={{width:"100%",padding:"13px 16px",background:PAPER_DK,
-                border:`1.5px solid ${nameInput.trim()?YELLOW:BORDER}`,
-                borderRadius:8,color:INK,fontSize:16,fontFamily:"'Noto Sans JP',sans-serif",
-                outline:"none",boxSizing:"border-box",marginBottom:14,transition:"border-color 0.2s"}}/>
-            <button onClick={handleNameSubmit} disabled={!nameInput.trim()}
-              style={{width:"100%",padding:14,
-                background:nameInput.trim()?YELLOW:"#ddd",
-                color:nameInput.trim()?INK:"#aaa",
-                border:"none",borderRadius:8,fontSize:14,
-                cursor:nameInput.trim()?"pointer":"not-allowed",
-                fontFamily:"'Noto Sans JP',sans-serif",letterSpacing:"0.12em",transition:"all 0.2s"}}>
+
+            <div style={{ fontSize: 14, color: "#111", marginBottom: 16, lineHeight: 1.8 }}>
+              氏名を入力してください
+            </div>
+            <input
+              type="text"
+              value={nameInput}
+              onChange={e => setNameInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && !e.nativeEvent.isComposing && handleNameSubmit()}
+              placeholder="例：山田 太郎"
+              autoFocus
+              style={{
+                width: "100%", padding: "12px 14px",
+                background: "#f5f3ee",
+                border: `1.5px solid ${nameInput.trim() ? "#f5c400" : "#e0ddd6"}`,
+                borderRadius: 8, color: "#111", fontSize: 15,
+                fontFamily: "'Noto Sans JP',sans-serif",
+                outline: "none", boxSizing: "border-box",
+                marginBottom: 12, transition: "border-color 0.2s",
+              }}
+            />
+            <button
+              onClick={handleNameSubmit}
+              disabled={!nameInput.trim()}
+              style={{
+                width: "100%", padding: "13px",
+                background: nameInput.trim() ? "#111" : "#ddd",
+                color: nameInput.trim() ? "#fff" : "#aaa",
+                border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600,
+                cursor: nameInput.trim() ? "pointer" : "not-allowed",
+                fontFamily: "'Noto Sans JP',sans-serif",
+                letterSpacing: "0.08em", transition: "all 0.2s",
+              }}
+            >
               はじめる →
             </button>
           </div>
@@ -266,250 +441,420 @@ export default function App(){
     );
   }
 
-  // ── メイン画面 ────────────────────────────────────────────
-  return(
-    <div style={{fontFamily:"'Noto Sans JP',sans-serif",background:PAPER,color:INK,minHeight:"100vh",maxWidth:480,margin:"0 auto"}}>
-      {loading&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(255,255,255,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999,fontSize:14,color:INK_LT}}>読み込み中...</div>}
-
-      {/* ヘッダー */}
-      <div style={{position:"sticky",top:0,zIndex:100}}>
-        {/* ロゴ・タイトルエリア（白背景） */}
-        <div style={{background:"white",padding:"14px 20px 10px",borderBottom:`1px solid ${BORDER}`}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <img src="/logo_after.png" alt="変わるリーダー" style={{height:28,width:"auto"}}/>
-              <h1 style={{fontFamily:"'Noto Serif JP',serif",fontSize:17,color:INK,letterSpacing:"0.08em",margin:0}}>変わるリーダー</h1>
-            </div>
-            <button onClick={()=>{setShowProfile(true);setEditName(false);}}
-              style={{background:PAPER_DK,color:INK_LT,fontSize:11,padding:"3px 10px",borderRadius:12,border:`1px solid ${BORDER}`,cursor:"pointer",fontFamily:"'Noto Sans JP',sans-serif"}}>プロフィール</button>
-          </div>
-          <div style={{fontSize:10,color:INK_LT,letterSpacing:"0.14em"}}>LEADERSHIP PROGRAM</div>
+  // ── Main screen ───────────────────────────────────────────
+  return (
+    <div style={{
+      fontFamily: "'Noto Sans JP',sans-serif",
+      background: "#faf9f6", color: "#111",
+      minHeight: "100vh", maxWidth: 480,
+      margin: "0 auto", display: "flex", flexDirection: "column",
+    }}>
+      {loading && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(255,255,255,0.85)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 999, fontSize: 14, color: "#555",
+        }}>
+          読み込み中...
         </div>
-        {/* タブエリア（黒背景） */}
-        <div style={{background:"#111",display:"flex"}}>
-          {[{id:"week",label:"記録"},{id:"summary",label:"サマリー"}].map(t=>(
-            <button key={t.id} onClick={()=>setTab(t.id)}
-              style={{flex:1,padding:"12px 4px",background:"none",border:"none",
-                borderBottom:tab===t.id?`2px solid ${YELLOW}`:"2px solid transparent",
-                color:tab===t.id?YELLOW:"rgba(255,255,255,0.38)",
-                fontFamily:"'Noto Sans JP',sans-serif",fontSize:11,cursor:"pointer",
-                letterSpacing:"0.04em",transition:"color 0.15s",
-                WebkitTapHighlightColor:"transparent"}}>
-              {t.label}
+      )}
+
+      {/* ── Header ── */}
+      <div style={{ position: "sticky", top: 0, zIndex: 100, background: "#111", flexShrink: 0 }}>
+        <div style={{ padding: "12px 16px 10px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <LogoSVG />
+              <div>
+                <div style={{
+                  fontFamily: "'Noto Serif JP',serif",
+                  fontSize: 18, fontWeight: 700, color: "#fff",
+                  letterSpacing: "0.02em", lineHeight: 1.2,
+                }}>変わるリーダー</div>
+                <div style={{ fontSize: 9, color: "#888", letterSpacing: "0.12em", fontWeight: 500, marginTop: 1 }}>
+                  LEADERSHIP PROGRAM
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowProfile(true)}
+              style={{
+                background: "rgba(255,255,255,0.1)",
+                border: "1px solid rgba(255,255,255,0.2)",
+                color: "#fff", borderRadius: 20, padding: "6px 14px",
+                fontSize: 12, fontFamily: "'Noto Sans JP',sans-serif",
+                fontWeight: 500, cursor: "pointer",
+                letterSpacing: "0.02em", transition: "background 0.15s",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.18)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; }}
+            >
+              {userName
+                ? userName.slice(0, 6) + (userName.length > 6 ? "…" : "")
+                : "プロフィール"}
+            </button>
+          </div>
+        </div>
+
+        {/* Tab bar */}
+        <div style={{ display: "flex", borderTop: "1px solid #222" }}>
+          {["記録", "サマリー"].map(t => (
+            <button
+              key={t}
+              onClick={() => {
+                setTab(t);
+                if (scrollRef.current) scrollRef.current.scrollTop = 0;
+              }}
+              style={{
+                flex: 1, padding: "12px 0",
+                background: "none", border: "none",
+                color: tab === t ? "#f5c400" : "#888",
+                fontSize: 14, fontFamily: "'Noto Sans JP',sans-serif",
+                fontWeight: tab === t ? 600 : 400,
+                cursor: "pointer", position: "relative",
+                letterSpacing: "0.04em", transition: "color 0.15s",
+                WebkitTapHighlightColor: "transparent",
+              }}
+            >
+              {t}
+              {tab === t && (
+                <div style={{
+                  position: "absolute", bottom: 0,
+                  left: "20%", right: "20%",
+                  height: 2, background: "#f5c400", borderRadius: 2,
+                }} />
+              )}
             </button>
           ))}
         </div>
       </div>
 
-      {/* プロフィールモーダル */}
-      {showProfile&&(
-        <div onClick={()=>setShowProfile(false)}
-          style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
-          <div onClick={e=>e.stopPropagation()}
-            style={{background:"white",borderRadius:"16px 16px 0 0",padding:24,width:"100%",maxWidth:480,boxSizing:"border-box",paddingBottom:40}}>
-            {/* ヘッダー */}
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-              <div style={{fontFamily:"'Noto Serif JP',serif",fontSize:15,color:INK}}>プロフィール</div>
-              <button onClick={()=>setShowProfile(false)}
-                style={{background:"none",border:"none",fontSize:20,color:INK_LT,cursor:"pointer",lineHeight:1,padding:"2px 6px"}}>×</button>
-            </div>
-            {/* ① 名前の変更 */}
-            <div style={{marginBottom:20}}>
-              <div style={{fontSize:11,color:INK_LT,letterSpacing:"0.08em",marginBottom:8}}>お名前</div>
-              {editName?(
-                <>
-                  <input type="text" value={nameDraft} onChange={e=>setNameDraft(e.target.value)}
-                    onKeyDown={e=>e.key==="Enter"&&handleNameChange()} autoFocus
-                    style={{...taStyle,fontSize:14,padding:"10px 12px",borderRadius:8,marginBottom:8,resize:"none"}}/>
-                  <div style={{display:"flex",gap:8}}>
-                    <Btn onClick={handleNameChange} disabled={!nameDraft.trim()} style={{flex:1}}>保存する</Btn>
-                    <Btn secondary onClick={()=>setEditName(false)} style={{flex:1}}>キャンセル</Btn>
-                  </div>
-                </>
-              ):(
-                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:PAPER_DK,borderRadius:8,padding:"10px 14px"}}>
-                  <span style={{fontSize:15,fontFamily:"'Noto Serif JP',serif",color:INK}}>{userName}</span>
-                  <Btn secondary small onClick={()=>{setNameDraft(userName);setEditName(true);}}>変更</Btn>
+      {/* ── Scrollable content ── */}
+      <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", paddingBottom: 32 }}>
+
+        {/* ── 記録 tab ── */}
+        {tab === "記録" && (
+          <div key={`record-${weekOffset}`} className="fade-in">
+
+            {/* Week navigation */}
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "14px 16px 10px", background: "#faf9f6",
+            }}>
+              <button
+                onClick={() => { setWeekOffset(o => o - 1); setEditingGoal(false); }}
+                style={{
+                  background: "none", border: "none",
+                  color: "#888", fontSize: 20,
+                  cursor: "pointer", padding: "0 6px", lineHeight: 1,
+                }}
+              >‹</button>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#111", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                  {fmtMD(weekDates[0])} 〜 {fmtMD(weekDates[4])}
                 </div>
-              )}
-            </div>
-            {/* ② 個人URL */}
-            <div>
-              <div style={{fontSize:11,color:INK_LT,letterSpacing:"0.08em",marginBottom:8}}>あなた専用のURL</div>
-              <div style={{fontSize:10,color:INK_LT,marginBottom:8,lineHeight:1.6}}>別端末・別ブラウザでもこのURLでアクセスすればデータを引き継げます</div>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <div style={{flex:1,fontSize:10,color:INK_LT,background:PAPER_DK,borderRadius:6,padding:"7px 10px",border:`1px solid ${BORDER}`,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
-                  {`${window.location.origin}?uid=${userId}`}
-                </div>
-                <button
-                  onClick={()=>{
-                    navigator.clipboard.writeText(`${window.location.origin}?uid=${userId}`);
-                    setUrlCopied(true);
-                    setTimeout(()=>setUrlCopied(false),2000);
-                  }}
-                  style={{flexShrink:0,padding:"7px 12px",background:urlCopied?SUCCESS:YELLOW,color:urlCopied?"white":INK,border:"none",borderRadius:6,fontSize:11,cursor:"pointer",transition:"background 0.2s",whiteSpace:"nowrap",fontFamily:"'Noto Sans JP',sans-serif"}}>
-                  {urlCopied?"✓ コピー済":"コピー"}
-                </button>
+                {isCurrent
+                  ? <div style={{ fontSize: 11, color: "#f5c400", fontWeight: 600, marginTop: 2, letterSpacing: "0.06em" }}>今週</div>
+                  : <div style={{ fontSize: 11, color: "#aaa", marginTop: 2 }}>{weekOffset < 0 ? `${Math.abs(weekOffset)}週前` : `${weekOffset}週後`}</div>
+                }
               </div>
+              <button
+                onClick={() => { if (weekOffset < 0) { setWeekOffset(o => o + 1); setEditingGoal(false); } }}
+                disabled={weekOffset >= 0}
+                style={{
+                  background: "none", border: "none",
+                  color: weekOffset >= 0 ? "#ddd" : "#888",
+                  fontSize: 20,
+                  cursor: weekOffset >= 0 ? "default" : "pointer",
+                  padding: "0 6px", lineHeight: 1,
+                }}
+              >›</button>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* 週ナビゲーション（週の記録タブのみ） */}
-      {tab==="week"&&(
-        <div style={{background:"white",borderBottom:`1px solid ${BORDER}`,padding:"10px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:88,zIndex:99}}>
-          <button onClick={()=>{setWeekOffset(o=>o-1);setEditGoal(false);}}
-            style={{background:"none",border:"none",cursor:"pointer",fontSize:22,color:"#888",padding:"4px 8px",lineHeight:1}}>‹</button>
-          <div style={{textAlign:"center"}}>
-            <div style={{fontSize:13,fontFamily:"'Noto Serif JP',serif",color:INK}}>
-              {weekDates[0].getMonth()+1}/{weekDates[0].getDate()} 〜 {weekDates[4].getMonth()+1}/{weekDates[4].getDate()}
-            </div>
-            <div style={{fontSize:10,marginTop:2,letterSpacing:"0.08em",color:isCurrent?YELLOW:INK_LT}}>
-              {isCurrent?"今週":weekOffset<0?`${Math.abs(weekOffset)}週前`:`${weekOffset}週後`}
-            </div>
-          </div>
-          <button onClick={()=>{setWeekOffset(o=>o+1);setEditGoal(false);}}
-            style={{background:"none",border:"none",cursor:"pointer",fontSize:22,color:"#888",padding:"4px 8px",lineHeight:1}}>›</button>
-        </div>
-      )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "0 12px" }}>
 
-      <div style={{padding:"20px 20px 100px"}}>
-
-        {/* ── 今週の記録 ─────────────────────────────────── */}
-        {tab==="week"&&(
-          <>
-            {/* ① 今週取り組むこと */}
-            <Card>
-              <CardTitle>① {isCurrent?"今週":"この週"}のベンジャミン</CardTitle>
-              {editGoal?(
-                <>
-                  <TA value={goalDraft} onChange={e=>setGoalDraft(e.target.value)} rows={3}
-                    placeholder="今週の取り組みを入力..." style={{fontSize:14,padding:12}}/>
-                  <div style={{display:"flex",gap:8,marginTop:10}}>
-                    <Btn onClick={()=>{updateWeek({goal:goalDraft});setEditGoal(false);}} style={{flex:1}}>保存する</Btn>
-                    <Btn secondary onClick={()=>setEditGoal(false)} style={{flex:1}}>キャンセル</Btn>
-                  </div>
-                </>
-              ):(
-                <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12}}>
-                  <div style={{fontFamily:"'Noto Serif JP',serif",fontSize:16,lineHeight:1.8,color:weekData.goal?INK:"#aaa",flex:1}}>
-                    {weekData.goal||"今週の取り組みを入力してください"}
-                  </div>
-                  <Btn secondary small onClick={()=>{setGoalDraft(weekData.goal||"");setEditGoal(true);}}
-                    style={{flexShrink:0}}>
-                    編集
-                  </Btn>
-                </div>
-              )}
-            </Card>
-
-            {/* ② 今週の実行 */}
-            <Card>
-              <CardTitle>② 実践状況</CardTitle>
-              {weekDates.map((d,i)=>{
-                const dk=dateKey(d);
-                const day=weekData.days[dk]||{};
-                const isToday=isCurrent&&isSameDay(d,today);
-                // 現在週のみ未来日はグレーアウト。過去週・未来週はすべて入力可
-                const isFuture=isCurrent&&d>today;
-                return(
-                  <div key={dk} style={{
-                    marginBottom:12,
-                    opacity:isFuture?0.4:1,
-                    borderLeft:isToday?`3px solid ${YELLOW}`:"3px solid transparent",
-                    paddingLeft:10,
-                  }}>
-                    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:isFuture?0:6}}>
-                      <div style={{width:20,fontSize:13,color:isToday?YELLOW:INK_LT,fontWeight:isToday?"bold":"normal"}}>{DAYS_JP[i]}</div>
-                      <div style={{fontSize:12,color:INK_LT,flex:1}}>{d.getMonth()+1}/{d.getDate()}</div>
-                      <CheckBtns dk={dk} day={day} onToggle={toggleCheck} isFuture={isFuture}/>
+              {/* ① 今週のベンジャミン */}
+              <Card>
+                <SectionTitle label="①">{isCurrent ? "今週" : "この週"}のベンジャミン</SectionTitle>
+                {editingGoal ? (
+                  <div>
+                    <input
+                      value={goalDraft}
+                      onChange={e => setGoalDraft(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                          updateWeek({ goal: goalDraft });
+                          setEditingGoal(false);
+                        }
+                      }}
+                      autoFocus
+                      placeholder="今週の目標を入力..."
+                      style={{
+                        width: "100%", padding: "10px 12px",
+                        border: "1.5px solid #f5c400",
+                        borderRadius: 8, fontSize: 15,
+                        fontFamily: "'Noto Sans JP',sans-serif",
+                        color: "#111", background: "#fffef5",
+                        outline: "none", marginBottom: 10, boxSizing: "border-box",
+                      }}
+                    />
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        onClick={() => { updateWeek({ goal: goalDraft }); setEditingGoal(false); }}
+                        style={{
+                          flex: 1, padding: 9, background: "#111", color: "#fff",
+                          border: "none", borderRadius: 8, fontSize: 13,
+                          fontFamily: "'Noto Sans JP',sans-serif", fontWeight: 600, cursor: "pointer",
+                        }}
+                      >保存</button>
+                      <button
+                        onClick={() => setEditingGoal(false)}
+                        style={{
+                          flex: 1, padding: 9, background: "#f0ede6", color: "#555",
+                          border: "none", borderRadius: 8, fontSize: 13,
+                          fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer",
+                        }}
+                      >キャンセル</button>
                     </div>
-                    {!isFuture&&(
-                      <TA rows={1} value={day.comment||""} onChange={e=>setComment(dk,e.target.value)}
-                        placeholder={`${DAYS_JP[i]}曜のコメント...`} style={{fontSize:11,padding:"5px 8px"}}/>
-                    )}
                   </div>
-                );
-              })}
-              <SaveIndicator status={saveStatus}/>
-            </Card>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                    <span style={{
+                      fontSize: 15, color: weekData.goal ? "#111" : "#aaa",
+                      fontFamily: "'Noto Sans JP',sans-serif",
+                      lineHeight: 1.5, flex: 1,
+                    }}>
+                      {weekData.goal || "目標を設定しましょう..."}
+                    </span>
+                    <button
+                      onClick={() => { setGoalDraft(weekData.goal || ""); setEditingGoal(true); }}
+                      style={{
+                        padding: "6px 14px", border: "1px solid #e0ddd6",
+                        borderRadius: 8, background: "#fff", fontSize: 12,
+                        color: "#555", cursor: "pointer",
+                        fontFamily: "'Noto Sans JP',sans-serif",
+                        flexShrink: 0, transition: "background 0.15s",
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = "#f5f3ee"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "#fff"; }}
+                    >
+                      編集
+                    </button>
+                  </div>
+                )}
+              </Card>
 
-            {/* ③ 今週の実行率 */}
-            <Card>
-              <CardTitle>③ {isCurrent?"今週":"この週"}の実行率</CardTitle>
-              <div style={{textAlign:"center",padding:"12px 0"}}>
-                <div style={{fontFamily:"'Noto Serif JP',serif",fontSize:56,color:YELLOW,lineHeight:1}}>
-                  {pct}<span style={{fontSize:22}}>%</span>
+              {/* ② 実践状況 */}
+              <Card>
+                <SectionTitle label="②">実践状況</SectionTitle>
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  {weekDates.map((d, i) => {
+                    const dk  = dateKey(d);
+                    const day = weekData.days[dk] || {};
+                    return (
+                      <div key={dk}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0" }}>
+                          <span style={{
+                            fontSize: 13, fontWeight: 600, color: "#555",
+                            width: 16, textAlign: "center",
+                            fontFamily: "'Noto Sans JP',sans-serif",
+                          }}>{DAYS_JP[i]}</span>
+                          <span style={{
+                            fontSize: 12, color: "#aaa", width: 36,
+                            fontFamily: "'Noto Sans JP',sans-serif",
+                          }}>{fmtMD(d)}</span>
+                          <div style={{ flex: 1 }} />
+                          <div style={{ display: "flex", gap: 6 }}>
+                            {["o", "x", "n"].map(type => (
+                              <StatusBtn
+                                key={type} type={type} selected={day.status}
+                                onClick={() => toggleStatus(dk, type)}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                        <input
+                          value={day.comment || ""}
+                          onChange={e => setComment(dk, e.target.value)}
+                          placeholder={`${DAYS_JP[i]}曜のコメント...`}
+                          style={{
+                            width: "100%", padding: "8px 10px",
+                            border: "none", borderRadius: 6, fontSize: 12,
+                            fontFamily: "'Noto Sans JP',sans-serif",
+                            color: "#555", background: "#f5f3ee",
+                            outline: "none", marginBottom: 4, boxSizing: "border-box",
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
-                <div style={{fontSize:13,color:INK_LT,marginTop:10}}>
-                  {isCurrent
-                    ?<>{totalSoFar}日中 {checkedDays}日 実行</>
-                    :totalSoFar>0
-                      ?<>{checkedDays}日 実行（{totalSoFar}日記録）</>
-                      :<>まだ記録がありません</>
-                  }
-                </div>
-                <div style={{height:10,background:PAPER_DK,borderRadius:99,overflow:"hidden",margin:"8px 0 4px"}}>
-                  <div style={{height:"100%",width:`${pct}%`,background:YELLOW,borderRadius:99,transition:"width 0.8s cubic-bezier(.4,0,.2,1)"}}/>
-                </div>
-              </div>
-            </Card>
+                <SaveIndicator status={saveStatus} />
+              </Card>
 
-            {/* ④ 気づき・学び */}
-            <Card>
-              <CardTitle>④ 気づき・学び</CardTitle>
-              <TA rows={5}
-                value={typeof weekData.reflection==="string"?weekData.reflection:(weekData.reflection?.good||"")}
-                onChange={e=>updateWeek({reflection:e.target.value})}
-                placeholder="今週の気づき・学びを自由に書いてください..."/>
-              <SaveIndicator status={saveStatus}/>
-            </Card>
-          </>
+              {/* ③ 今週の実行率 */}
+              <Card key={`rate-${weekOffset}-${rate}`}>
+                <SectionTitle label="③">{isCurrent ? "今週" : "この週"}の実行率</SectionTitle>
+                <div style={{ textAlign: "center", padding: "8px 0 16px" }}>
+                  <div
+                    className="count-up"
+                    style={{
+                      fontFamily: "'Noto Serif JP',serif",
+                      fontSize: 64, fontWeight: 700,
+                      color: "#f5c400", lineHeight: 1, letterSpacing: "-0.02em",
+                    }}
+                  >
+                    {rate}<span style={{ fontSize: 28, fontWeight: 400, marginLeft: 2 }}>%</span>
+                  </div>
+                  <div style={{
+                    fontSize: 13, color: "#888",
+                    marginTop: 6, marginBottom: 16,
+                    fontFamily: "'Noto Sans JP',sans-serif",
+                  }}>
+                    5日中 {doneCount}日 実行
+                  </div>
+                  <ProgressBar rate={rate} animated={true} />
+                </div>
+              </Card>
+
+              {/* ④ 気づき・学び */}
+              <Card>
+                <SectionTitle label="④">気づき・学び</SectionTitle>
+                <textarea
+                  value={weekData.reflection || ""}
+                  onChange={e => updateWeek({ reflection: e.target.value })}
+                  placeholder="今週の気づき・学びを自由に書いてください..."
+                  rows={4}
+                  style={{
+                    width: "100%", padding: "10px 12px",
+                    border: "1px solid #e8e5e0", borderRadius: 8,
+                    fontSize: 13, fontFamily: "'Noto Sans JP',sans-serif",
+                    color: "#333", background: "#f5f3ee",
+                    outline: "none", resize: "none",
+                    lineHeight: 1.7, boxSizing: "border-box",
+                  }}
+                  onFocus={e => { e.target.style.borderColor = "#f5c400"; e.target.style.background = "#fffef7"; }}
+                  onBlur={e  => { e.target.style.borderColor = "#e8e5e0"; e.target.style.background = "#f5f3ee"; }}
+                />
+                <SaveIndicator status={saveStatus} />
+              </Card>
+
+            </div>
+          </div>
         )}
 
-        {/* ── サマリー ────────────────────────────────────── */}
-        {tab==="summary"&&(
-          <>
+        {/* ── サマリー tab ── */}
+        {tab === "サマリー" && (
+          <div style={{ padding: "16px 12px", display: "flex", flexDirection: "column", gap: 12 }} className="fade-in">
+
+            {/* 総合サマリー */}
             <Card>
-              <CardTitle>総合サマリー</CardTitle>
-              <div style={{display:"flex",justifyContent:"center"}}>
-                <div style={{background:PAPER_DK,borderRadius:10,padding:"20px 40px",textAlign:"center"}}>
-                  <div style={{fontFamily:"'Noto Serif JP',serif",fontSize:48,color:overallPct>=70?SUCCESS:YELLOW,lineHeight:1}}>
-                    {overallPct}<span style={{fontSize:20}}>%</span>
+              <SectionTitle>総合サマリー</SectionTitle>
+              <div style={{ display: "flex", justifyContent: "center", padding: "8px 0" }}>
+                <div style={{
+                  width: 140, height: 140, borderRadius: 16,
+                  background: "#f5f3ee",
+                  display: "flex", flexDirection: "column",
+                  alignItems: "center", justifyContent: "center",
+                }}>
+                  <div
+                    className="count-up"
+                    style={{
+                      fontFamily: "'Noto Serif JP',serif",
+                      fontSize: 52, fontWeight: 700,
+                      color: "#f5c400", lineHeight: 1,
+                    }}
+                  >
+                    {overallRate}<span style={{ fontSize: 22 }}>%</span>
                   </div>
-                  <div style={{fontSize:11,color:INK_LT,marginTop:6,letterSpacing:"0.08em"}}>総合達成率</div>
+                  <div style={{ fontSize: 11, color: "#888", marginTop: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                    総合達成率
+                  </div>
+                </div>
+              </div>
+              <div style={{ marginTop: 16 }}>
+                <ProgressBar rate={overallRate} animated={true} />
+                <div style={{ fontSize: 11, color: "#aaa", marginTop: 6, textAlign: "center", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                  {allWeeks.length}週 · {totalDone}日 / {totalPossible}日 実行
                 </div>
               </div>
             </Card>
 
+            {/* 週別サマリー */}
             <Card>
-              <CardTitle>週別サマリー</CardTitle>
-              {allWeeks.length===0
-                ?<div style={{color:"#aaa",fontSize:13,textAlign:"center",padding:"20px 0"}}>まだ履歴がありません</div>
-                :allWeeks.map(([k,wd])=>{
-                  const done=Object.values(wd.days||{}).filter(d=>d.status==="done").length;
-                  const total=Object.values(wd.days||{}).filter(d=>["done","skip"].includes(d.status)).length;
-                  const p=total>0?Math.round(done/total*100):0;
-                  return(
-                    <div key={k} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:`1px solid ${PAPER_DK}`}}>
-                      <div style={{flex:1,marginRight:10}}>
-                        <div style={{fontSize:13,color:INK}}>{wd.goal||"（目標未設定）"}</div>
-                        <div style={{fontSize:11,color:"#aaa",marginTop:2,display:"flex",gap:6,flexWrap:"wrap"}}>
-                          <span>{k.replace(/-/g,"/")} 週〜</span>
-                          {k===weekKey&&<span style={{color:YELLOW}}>今週</span>}
+              <SectionTitle>週別サマリー</SectionTitle>
+              {allWeeks.length === 0 ? (
+                <div style={{ color: "#aaa", fontSize: 13, textAlign: "center", padding: "20px 0" }}>
+                  まだ履歴がありません
+                </div>
+              ) : (
+                allWeeks.map(([k, wd], i) => {
+                  const done  = Object.values(wd.days || {}).filter(d => d.status === "o").length;
+                  const wrate = Math.round(done / 5 * 100);
+                  const isThisWeek = k === weekKey;
+                  const offset     = weekOffsetFromKey(k);
+                  return (
+                    <div
+                      key={k}
+                      onClick={() => {
+                        setWeekOffset(offset);
+                        setTab("記録");
+                        if (scrollRef.current) scrollRef.current.scrollTop = 0;
+                      }}
+                      style={{
+                        display: "flex", alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "14px 0",
+                        borderBottom: i < allWeeks.length - 1 ? "1px solid #f0ede6" : "none",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{
+                          fontSize: 14, color: "#111", fontWeight: 500,
+                          fontFamily: "'Noto Sans JP',sans-serif",
+                          marginBottom: 3,
+                        }}>
+                          {wd.goal || <span style={{ color: "#ccc" }}>目標未設定</span>}
+                        </div>
+                        <div style={{
+                          fontSize: 11, color: "#aaa",
+                          fontFamily: "'Noto Sans JP',sans-serif",
+                          display: "flex", alignItems: "center", gap: 6,
+                        }}>
+                          {k} 週〜
+                          {isThisWeek && (
+                            <span style={{ color: "#f5c400", fontWeight: 600, fontSize: 10 }}>今週</span>
+                          )}
                         </div>
                       </div>
-                      <div style={{fontFamily:"'Noto Serif JP',serif",fontSize:18,color:p>=70?SUCCESS:YELLOW,minWidth:44,textAlign:"right"}}>{p}%</div>
+                      <div style={{
+                        fontFamily: "'Noto Serif JP',serif",
+                        fontSize: 22, fontWeight: 700,
+                        color: "#f5c400", flexShrink: 0, marginLeft: 12,
+                      }}>
+                        {wrate}%
+                      </div>
                     </div>
                   );
                 })
-              }
+              )}
             </Card>
-          </>
-        )}
 
+          </div>
+        )}
       </div>
+
+      {/* Profile modal */}
+      {showProfile && (
+        <ProfileModal
+          userName={userName}
+          userId={userId}
+          onClose={() => setShowProfile(false)}
+          onSave={handleNameSave}
+        />
+      )}
     </div>
   );
 }
