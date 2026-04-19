@@ -60,15 +60,6 @@ function normalizeWeekData(wd) {
 
 // ── Components ─────────────────────────────────────────────────
 
-function LogoSVG() {
-  return (
-    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-      <circle cx="14" cy="7" r="4" fill="#f5c400"/>
-      <path d="M7 28c0-7 14-7 14 0" fill="#f5c400"/>
-      <path d="M4 18c2-4 18-4 20 0" stroke="#f5c400" strokeWidth="1.5" fill="none"/>
-    </svg>
-  );
-}
 
 function SectionTitle({ label, children }) {
   return (
@@ -387,7 +378,7 @@ export default function App() {
               marginBottom: 28, paddingBottom: 20,
               borderBottom: "1px solid #e8e5e0",
             }}>
-              <LogoSVG />
+              <img src="/logo_after.png" alt="変わるリーダー" style={{ height: 36, width: "auto" }} />
               <div>
                 <h1 style={{
                   fontFamily: "'Noto Serif JP',serif",
@@ -461,15 +452,16 @@ export default function App() {
       )}
 
       {/* ── Header ── */}
-      <div style={{ position: "sticky", top: 0, zIndex: 100, background: "#111", flexShrink: 0 }}>
-        <div style={{ padding: "12px 16px 10px" }}>
+      <div style={{ position: "sticky", top: 0, zIndex: 100, flexShrink: 0 }}>
+        {/* White logo area */}
+        <div style={{ background: "#fff", padding: "12px 16px 10px", borderBottom: "1px solid #e8e5e0" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <LogoSVG />
+              <img src="/logo_after.png" alt="変わるリーダー" style={{ height: 32, width: "auto" }} />
               <div>
                 <div style={{
                   fontFamily: "'Noto Serif JP',serif",
-                  fontSize: 18, fontWeight: 700, color: "#fff",
+                  fontSize: 18, fontWeight: 700, color: "#111",
                   letterSpacing: "0.02em", lineHeight: 1.2,
                 }}>変わるリーダー</div>
                 <div style={{ fontSize: 9, color: "#888", letterSpacing: "0.12em", fontWeight: 500, marginTop: 1 }}>
@@ -480,15 +472,15 @@ export default function App() {
             <button
               onClick={() => setShowProfile(true)}
               style={{
-                background: "rgba(255,255,255,0.1)",
-                border: "1px solid rgba(255,255,255,0.2)",
-                color: "#fff", borderRadius: 20, padding: "6px 14px",
+                background: "#f5f3ee",
+                border: "1px solid #e0ddd6",
+                color: "#555", borderRadius: 20, padding: "6px 14px",
                 fontSize: 12, fontFamily: "'Noto Sans JP',sans-serif",
                 fontWeight: 500, cursor: "pointer",
                 letterSpacing: "0.02em", transition: "background 0.15s",
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.18)"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; }}
+              onMouseEnter={e => { e.currentTarget.style.background = "#ebe8e0"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "#f5f3ee"; }}
             >
               {userName
                 ? userName.slice(0, 6) + (userName.length > 6 ? "…" : "")
@@ -498,7 +490,7 @@ export default function App() {
         </div>
 
         {/* Tab bar */}
-        <div style={{ display: "flex", borderTop: "1px solid #222" }}>
+        <div style={{ background: "#111", display: "flex" }}>
           {["記録", "サマリー"].map(t => (
             <button
               key={t}
