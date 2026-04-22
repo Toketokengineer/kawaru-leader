@@ -147,8 +147,6 @@ function SaveIndicator({ status }) {
 
 function ProfileModal({ userName, userId, onClose, onSave }) {
   const [val, setVal] = useState(userName);
-  const [copied, setCopied] = useState(false);
-  const url = `${window.location.origin}?uid=${userId}`;
 
   function handleSave() {
     if (val.trim()) { onSave(val.trim()); }
@@ -178,7 +176,7 @@ function ProfileModal({ userName, userId, onClose, onSave }) {
           <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, color: "#888", cursor: "pointer", lineHeight: 1 }}>×</button>
         </div>
 
-        <div style={{ marginBottom: 16 }}>
+        <div style={{ marginBottom: 20 }}>
           <label style={{ fontSize: 12, color: "#555", fontWeight: 500, display: "block", marginBottom: 6 }}>お名前</label>
           <input
             value={val}
@@ -192,33 +190,6 @@ function ProfileModal({ userName, userId, onClose, onSave }) {
               color: "#111", background: "#faf9f6", outline: "none",
             }}
           />
-        </div>
-
-        <div style={{ marginBottom: 20 }}>
-          <label style={{ fontSize: 12, color: "#555", fontWeight: 500, display: "block", marginBottom: 6 }}>共有URL</label>
-          <div style={{
-            padding: "10px 12px", background: "#f0ede6", borderRadius: 8,
-            fontSize: 12, color: "#888", wordBreak: "break-all", fontFamily: "monospace",
-          }}>
-            {url}
-          </div>
-          <button
-            onClick={() => {
-              navigator.clipboard.writeText(url);
-              setCopied(true);
-              setTimeout(() => setCopied(false), 2000);
-            }}
-            style={{
-              marginTop: 8, width: "100%", padding: "8px",
-              background: copied ? "#2ea84a" : "#f5f3ee",
-              color: copied ? "#fff" : "#555",
-              border: "none", borderRadius: 6, fontSize: 12,
-              cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif",
-              transition: "all 0.2s",
-            }}
-          >
-            {copied ? "✓ コピー済み" : "URLをコピー"}
-          </button>
         </div>
 
         <button
